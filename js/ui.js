@@ -7,6 +7,8 @@ const UI = {
   muted: false,
   lastHud: 0,
   lastPanel: 0,
+  renaming: null,      // barber id whose name is being edited
+  inspectKey: '',
 };
 
 const $ = sel => document.querySelector(sel);
@@ -38,7 +40,73 @@ function updateHUD(force) {
   });
   const next = STAGES[s.stage + 1];
   $('#btnExpand').classList.toggle('pulse', !!next && expandRequirements().every(r => r.ok));
-  if (UI.panel && now - UI.lastPanel > 600) renderPanel();
+  if (UI.panel && now - UI.lastPanel > 600 && !panelInputFocused()) renderPanel();
+  updateInspector();
+}
+
+function panelInputFocused() {
+  const a = document.activeElement;
+  return a && a.tagName === 'INPUT' && a.type === 'text' && $('#panelBody').contains(a);
+}
+
+// ---------- inspector (tap a person) ----------
+
+function inspectState(a) {
+  if (a.barber) {
+    if (!a.job) return { text: 'Free – waiting for the next customer', bar: null };
+    if (a.state === 'working') return { text: `Doing a ${a.job.customer.service.name} for ${a.job.customer.name}`, bar: a.job.customer.progress || 0 };
+    return { text: `Walking to a chair for ${a.job.customer.name}`, bar: null };
+  }
+  switch (a.state) {
+    case 'enter': case 'waiting': return { text: 'Waiting for a barber', bar: clamp(a.patience / a.maxPatience, 0, 1), patience: true };
+    case 'toStation': return { text: 'Walking to the chair', bar: null };
+    case 'atStation': return a.inService ? { text: `Getting a ${a.service.name}`, bar: clamp(a.progress, 0, 1) } : { text: 'Sitting down', bar: null };
+    case 'toPay': case 'paying': return { text: 'Paying at the register', bar: null };
+    default: return { text: a.mood === 'angry' ? 'Leaving angry' : a.mood === 'sad' ? 'Leaving – no room' : 'Heading home, fresh cut', bar: null };
+  }
+}
+
+function updateInspector() {
+  const el = $('#inspect');
+  const a = Game.selected;
+  if (!a) { if (!el.hidden) { el.hidden = true; UI.inspectKey = ''; } return; }
+  el.hidden = false;
+  const st = inspectState(a);
+  const who = a.barber ? a.data : a;
+  const key = [a.id, a.state, a.mood, who.name, who.surname, st.bar === null, st.patience].join('|');
+  if (key !== UI.inspectKey) {
+    UI.inspectKey = key;
+    const o = ORIGINS[who.origin] || ORIGINS.al;
+    const moodIcon = a.barber ? '✂️' : { happy: '😊', angry: '😡', sad: '😞' }[a.mood] || '🙂';
+    const details = a.barber
+      ? `<div class="insp-row">Skill ${starsHTML(barberSkill(who), true)} · Speed <b>${Math.round(who.speed * 100)}%</b>${who.owner ? '' : ` · ${fmt(who.wage)}/day`}</div>`
+      : `<div class="insp-row">${serviceIcon(a.service)} Wants a <b>${a.service.name}</b> · ${fmt(a.service.price * PRICE_LEVELS[Game.state.priceLevel].price)}</div>`;
+    el.innerHTML = `<button class="insp-close" data-insp="close" aria-label="Close">✕</button>
+      <div class="insp-head"><span class="insp-mood">${moodIcon}</span>
+        <div><div class="insp-name">${fullName(who)}${who.owner ? ' <span class="badge">Owner</span>' : ''}</div>
+        <div class="insp-sub">${o.flag} ${o.label} ${a.barber ? 'barber' : 'customer'}</div></div></div>
+      ${details}
+      <div class="insp-row" id="inspTxt"></div>
+      ${st.bar !== null ? `<div class="insp-bar${st.patience ? ' patience' : ''}"><span id="inspBar"></span></div>` : ''}
+      ${a.barber ? `<button class="btn small" data-insp="rename">✏️ Rename</button>` : ''}`;
+  }
+  $('#inspTxt').textContent = st.text;
+  const bar = $('#inspBar');
+  if (bar && st.bar !== null) {
+    bar.style.width = `${Math.round(st.bar * 100)}%`;
+    if (st.patience) bar.style.background = st.bar > 0.5 ? 'var(--green)' : st.bar > 0.25 ? '#f4a261' : 'var(--red)';
+  }
+}
+
+function handleInspectClick(e) {
+  const b = e.target.closest('[data-insp]');
+  if (!b) return;
+  if (b.dataset.insp === 'close') Game.selected = null;
+  if (b.dataset.insp === 'rename' && Game.selected && Game.selected.barber) {
+    UI.renaming = Game.selected.data.id;
+    if (UI.panel !== 'staff') openPanel('staff'); else renderPanel();
+  }
+  updateInspector();
 }
 
 // ---------- panels ----------
@@ -54,6 +122,7 @@ function openPanel(name) {
 
 function closePanel() {
   UI.panel = null;
+  UI.renaming = null;
   $('#panel').classList.add('hidden');
   document.querySelectorAll('#toolbar button[data-panel]').forEach(b => b.classList.remove('active'));
 }
@@ -69,6 +138,8 @@ function renderPanel() {
     body.innerHTML = html;
     body.dataset.html = html;
     body.scrollTop = scroll;
+    const input = UI.renaming && document.getElementById(`rename-${UI.renaming}`);
+    if (input && document.activeElement !== input) { input.focus(); input.select(); }
   }
 }
 
@@ -101,23 +172,31 @@ function staffPanel() {
   const team = Game.barbers.map(a => {
     const b = a.data;
     const status = a.job ? (a.state === 'working' ? `Cutting (${a.job.customer.service.name})` : 'Heading to a chair') : 'Free';
+    const o = ORIGINS[b.origin] || ORIGINS.al;
+    const title = UI.renaming === b.id
+      ? `<div class="rename"><input type="text" id="rename-${b.id}" data-rename="${b.id}" maxlength="16" value="${fullName(b)}" aria-label="New name for ${fullName(b)}" autocomplete="off"><button class="btn small" data-action="saveName" data-id="${b.id}">Save</button></div>`
+      : `<div class="card-title">${o.flag} ${fullName(b)}${b.owner ? ' <span class="badge">Owner</span>' : ''} <button class="icon-btn" data-action="rename" data-id="${b.id}" title="Rename" aria-label="Rename ${fullName(b)}">✏️</button></div>`;
     return `<div class="card staff-card">
-      <div class="avatar" style="background:${b.shirt}"><span style="background:${b.skin}"></span></div>
-      <div class="card-main"><div class="card-title">${b.name}${b.owner ? ' <span class="badge">Owner</span>' : ''}</div>
+      ${avatarHTML(b)}
+      <div class="card-main">${title}
       <div class="card-desc">Skill ${starsHTML(barberSkill(b), true)} · Speed <b>${Math.round(b.speed * 100)}%</b></div>
       <div class="card-desc">${status}</div></div>
       <div class="side">${b.owner ? '<span class="muted">No wage</span>' : `<div class="muted">${fmt(b.wage)}/day</div><button class="btn small danger" data-action="fire" data-id="${b.id}">Fire</button>`}</div></div>`;
   }).join('');
   const full = s.barbers.length >= st.maxBarbers;
   const cands = s.candidates.map((c, i) => `<div class="card staff-card">
-      <div class="avatar" style="background:${c.shirt}"><span style="background:${c.skin}"></span></div>
-      <div class="card-main"><div class="card-title">${c.name}</div>
+      ${avatarHTML(c)}
+      <div class="card-main"><div class="card-title">${ORIGINS[c.origin].flag} ${fullName(c)}</div>
       <div class="card-desc">Skill ${starsHTML(c.skill, true)} · Speed <b>${Math.round(c.speed * 100)}%</b></div>
       <div class="card-desc">Wage <b>${fmt(c.wage)}</b>/day</div></div>
       <div class="side"><button class="btn small" data-action="hire" data-idx="${i}" ${full || s.money < c.fee ? 'disabled' : ''}>Hire ${fmt(c.fee)}</button></div></div>`).join('');
   return `<div class="panel-note">Team <b>${s.barbers.length}/${st.maxBarbers}</b> at ${st.name}. Wages are paid at closing time.${full && s.stage < STAGES.length - 1 ? ' <b>Expand</b> to hire more barbers!' : ''}</div>
     <h3>Your team</h3>${team}
     <h3>Looking for work <span class="muted">(new faces every morning)</span></h3>${cands || '<div class="muted">Nobody today. Come back tomorrow.</div>'}`;
+}
+
+function avatarHTML(b) {
+  return `<div class="avatar" style="background:${b.shirt}"><span class="av-head" style="background:${b.skin}"></span><span class="av-hair${b.female ? ' long' : ''}" style="background:${b.hair}"></span></div>`;
 }
 
 function servicesPanel() {
@@ -224,10 +303,32 @@ function handlePanelClick(e) {
       ]);
       break;
     case 'svc': return;
+    case 'rename':
+      UI.renaming = +el.dataset.id;
+      break;
+    case 'saveName': {
+      const input = document.getElementById(`rename-${el.dataset.id}`);
+      r = renameBarber(+el.dataset.id, input && input.value);
+      if (r.ok) { UI.renaming = null; UI.inspectKey = ''; toast(`Renamed to ${input.value.trim()} ✂️`); }
+      break;
+    }
   }
   if (r && !r.ok && r.reason) toast(r.reason, 2200, 'warn');
   if (UI.panel) renderPanel();
   updateHUD(true);
+}
+
+function handlePanelKey(e) {
+  const id = e.target.dataset && e.target.dataset.rename;
+  if (!id) return;
+  if (e.key === 'Enter') {
+    const btn = $(`[data-action="saveName"][data-id="${id}"]`);
+    if (btn) btn.click();
+  } else if (e.key === 'Escape') {
+    UI.renaming = null;
+    renderPanel();
+  }
+  e.stopPropagation();
 }
 
 function handlePanelChange(e) {
@@ -305,10 +406,10 @@ function showIntro() {
   showModal(`<div class="logo-big">CANI<span>Barber Tycoon</span></div>
     <p>Every legend starts somewhere. <b>Cani</b> starts in a <b>garage</b> with one barber chair, two plastic chairs and a plant.</p>
     <ul class="howto">
-      <li>💈 Customers walk in, wait on a seat and get a cut from a free barber.</li>
+      <li>💈 Customers from Albania 🇦🇱 and Slovenia 🇸🇮 walk in, wait on a seat and get a cut from a free barber. Tap anyone to see who they are.</li>
       <li>⏳ Watch the patience bar – slow service costs you reputation ★.</li>
       <li>🛠️ <b>Build</b> more seats, chairs and decor. Appeal brings more customers.</li>
-      <li>💇 <b>Hire</b> barbers, unlock <b>services</b> and buy <b>upgrades</b>.</li>
+      <li>💇 <b>Hire</b> barbers and give them any name you like ✏️. Unlock <b>services</b> and buy <b>upgrades</b>.</li>
       <li>🏙️ <b>Expand</b> from the garage to a corner shop, downtown, a studio and finally the <b>Cani Empire HQ</b>.</li>
     </ul>
     <p class="muted small">Drag to move the camera, scroll / pinch to zoom. Space pauses, 1-3 set speed.</p>`,

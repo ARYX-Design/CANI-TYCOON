@@ -6,6 +6,8 @@ const Game = {
   barbers: [],        // runtime agents, one per state.barbers entry
   floaters: [],       // floating texts (+$20, emotes)
   particles: [],      // hair clippings
+  sparkles: [],       // fresh-cut sparkles
+  selected: null,     // agent shown in the inspector
   speed: 1,
   paused: false,
   nightMode: false,   // true while the end-of-day summary is shown
@@ -35,7 +37,7 @@ function newState() {
     priceLevel: 1,
     items: [],
     nextId: 1,
-    barbers: [{ id: 1, name: 'Cani', owner: true, speed: 1.0, skill: 2, wage: 0, skin: '#e8b894', hair: '#1c1410', hairStyle: 5, shirt: '#e63946', pants: '#2b2d42' }],
+    barbers: [{ id: 1, name: 'Cani', surname: '', origin: 'al', female: false, owner: true, speed: 1.0, skill: 2, wage: 0, skin: '#e8b894', hair: '#1c1410', hairStyle: 5, shirt: '#e63946', pants: '#2b2d42', shoes: '#1d1d1d' }],
     nextBarberId: 2,
     upgrades: { clippers: 0, marketing: 0, academy: 0, loyalty: 0 },
     disabledServices: [],
@@ -61,7 +63,16 @@ function initWorld(state) {
   Game.customers = [];
   Game.floaters = [];
   Game.particles = [];
+  Game.sparkles = [];
+  Game.selected = null;
   Game.barbers = [];
+  // saves from before names had origins
+  state.barbers.forEach(b => {
+    if (!b.origin) b.origin = b.owner ? 'al' : pick(['al', 'si']);
+    if (b.surname === undefined) b.surname = b.owner ? '' : pick(NAMES[b.origin].surnames);
+    if (!b.shoes) b.shoes = pick(SHOE_COLORS);
+  });
+  if (state.candidates.some(c => !c.origin)) state.candidates = [];
   if (!state.candidates.length) state.candidates = genCandidates(3);
   state.barbers.forEach((b, i) => spawnBarberAgent(b, i));
 }
@@ -198,23 +209,51 @@ function sellItem(item) {
 
 // ---------- staff ----------
 
+function randomPerson() {
+  const origin = Math.random() < 0.5 ? 'al' : 'si';
+  const female = Math.random() < 0.42;
+  const hairStyle = pick(female ? HAIR_STYLES_F : HAIR_STYLES_M);
+  return {
+    origin, female,
+    name: pick(NAMES[origin][female ? 'f' : 'm']),
+    surname: pick(NAMES[origin].surnames),
+    skin: pick(SKIN_TONES),
+    hair: hairStyle === 4 ? pick(['#1c1410', '#3b2417', '#7a7a7a']) : pick(HAIR_COLORS),
+    hairStyle,
+    shirt: pick(SHIRT_COLORS), pants: pick(PANTS_COLORS), shoes: pick(SHOE_COLORS),
+    stripes: Math.random() < 0.2,
+    dress: female && Math.random() < 0.35,
+  };
+}
+
+function fullName(b) { return b.surname ? `${b.name} ${b.surname}` : b.name; }
+
 function genCandidates(n) {
   const s = Game.state;
   const out = [];
   const taken = new Set(s.barbers.map(b => b.name));
   for (let i = 0; i < n; i++) {
-    let name; do { name = pick(BARBER_NAMES); } while (taken.has(name) && taken.size < BARBER_NAMES.length);
-    taken.add(name);
+    let person, tries = 0;
+    do { person = randomPerson(); } while (taken.has(person.name) && ++tries < 20);
+    taken.add(person.name);
     const skill = clamp(randi(1, 2 + s.stage), 1, 5);
     const speed = Math.round(rand(0.8, 1.15 + s.stage * 0.07) * 100) / 100;
     const wage = Math.round(25 + skill * 16 + (speed - 0.8) * 90 + rand(0, 10));
-    out.push({
-      name, skill, speed, wage, fee: wage * 3,
-      skin: pick(SKIN_TONES), hair: pick(HAIR_COLORS), hairStyle: pick([0, 1, 2, 3, 5]),
-      shirt: pick(SHIRT_COLORS), pants: pick(PANTS_COLORS),
-    });
+    delete person.dress;
+    out.push({ ...person, skill, speed, wage, fee: wage * 3 });
   }
   return out;
+}
+
+function renameBarber(id, name) {
+  const b = Game.state.barbers.find(x => x.id === id);
+  const clean = String(name || '').replace(/[<>&"]/g, '').trim().slice(0, 16);
+  if (!b || !clean) return { ok: false, reason: 'Type a name first' };
+  const parts = clean.split(/\s+/);
+  b.name = parts[0];
+  b.surname = parts.slice(1).join(' ');
+  saveGame();
+  return { ok: true };
 }
 
 function hireCandidate(idx) {
@@ -228,7 +267,7 @@ function hireCandidate(idx) {
   s.barbers.push(b);
   s.candidates.splice(idx, 1);
   spawnBarberAgent(b, s.barbers.length - 1, true);
-  toast(`${b.name} joined the team! ✂️`);
+  toast(`${fullName(b)} joined the team! ${ORIGINS[b.origin].flag} ✂️`);
   sfx('hire');
   return { ok: true };
 }
@@ -240,6 +279,7 @@ function fireBarber(id) {
   if (agent.job) return { ok: false, reason: `${agent.data.name} is busy with a customer` };
   s.barbers = s.barbers.filter(b => b.id !== id);
   Game.barbers = Game.barbers.filter(a => a !== agent);
+  if (Game.selected === agent) Game.selected = null;
   toast(`${agent.data.name} left the shop.`);
   return { ok: true };
 }
@@ -255,7 +295,8 @@ function spawnBarberAgent(data, index, fromDoor) {
   const a = {
     id: Game.uid++, data, x, y: fromDoor ? -0.2 : y, path: [], state: 'idle', job: null, speed: 1.8,
     barber: true, owner: !!data.owner, skin: data.skin, hair: data.hair, hairStyle: data.hairStyle,
-    shirt: data.shirt, pants: data.pants, groomed: true, dir: 1, alpha: 1, mood: 'happy',
+    shirt: data.shirt, pants: data.pants, shoes: data.shoes, female: data.female, origin: data.origin,
+    stripes: data.stripes, groomed: true, dir: 1, alpha: 1, mood: 'happy',
   };
   if (fromDoor) {
     const spot = freeFloorTiles().find(t => t.y > 1) || d;
@@ -331,8 +372,8 @@ function spawnRatePerHour() {
     (1 + s.upgrades.marketing * 0.2) * PRICE_LEVELS[s.priceLevel].demand;
 }
 
-function weightedService() {
-  const list = availableServices();
+function weightedService(female) {
+  const list = availableServices().filter(sv => !(female && (sv.id === 'beard' || sv.id === 'shave')));
   if (!list.length) return null;
   const total = list.reduce((a, s) => a + s.weight, 0);
   let r = Math.random() * total;
@@ -341,18 +382,21 @@ function weightedService() {
 }
 
 function spawnCustomer() {
-  const service = weightedService();
+  const person = randomPerson();
+  const service = weightedService(person.female);
   if (!service) return;
   const d = doorTile();
   const patience = rand(70, 130) * (1 + patienceBonus());
   const c = {
     id: Game.uid++, x: d.x + 0.5, y: -0.25, path: [], speed: rand(1.4, 2.0), state: 'enter',
-    service, patience, maxPatience: patience, alpha: 0,
-    skin: pick(SKIN_TONES), hair: pick(HAIR_COLORS), hairStyle: randi(0, 4), beard: service.id === 'beard' || service.id === 'shave' || Math.random() < 0.25,
-    shirt: pick(SHIRT_COLORS), pants: pick(PANTS_COLORS), groomed: false, dir: -1, mood: 'neutral',
+    service, patience, maxPatience: patience, alpha: 0, ...person,
+    beard: !person.female && (service.id === 'beard' || service.id === 'shave' || Math.random() < 0.25),
+    capeColor: pick(['#2b2d42', '#1d3557', '#6a040f', '#264653']),
+    groomed: false, dir: -1, mood: 'neutral',
     seat: null, station: null, barber: null,
   };
   Game.customers.push(c);
+  if (Math.random() < 0.55) say(c, 'greet', 0.4);
 
   const seat = Game.state.items.find(i => ITEMS[i.type].seat && !i.occupant && findPath(d.x, d.y, i.x, i.y));
   if (seat) {
@@ -368,6 +412,7 @@ function spawnCustomer() {
     c.mood = 'sad';
     c.path = [{ x: d.x, y: d.y }, { px: d.x + 0.5, py: -0.3 }];
     c.lost = true;
+    say(c, 'full');
     loseCustomer(c, 0.015, '😞 Full!');
   }
 }
@@ -419,6 +464,7 @@ function tryAssign(c) {
       b.job = { customer: c, station: st, spot };
       b.state = 'toStation';
       b.path = bPath;
+      if (Math.random() < 0.35) say(b, 'next');
       return true;
     }
   }
@@ -497,7 +543,9 @@ function update(dtReal) {
   const s = Game.state;
   Game.t += dtReal;
   updateFloaters(dtReal);
+  updateSparkles(dtReal);
   if (Game.paused || Game.nightMode) return;
+  tickSpeech(dtReal * Game.speed);
   const dt = dtReal * Game.speed;
   const dtMin = dt * MIN_PER_SEC;
 
@@ -569,6 +617,7 @@ function updateCustomer(c, dt, dtMin) {
       if (c.path.length <= 1) c.alpha = Math.max(0, c.alpha - dt * 2.5);
       if (moveAgent(c, dt) || c.alpha <= 0) {
         Game.customers = Game.customers.filter(o => o !== c);
+        if (Game.selected === c) Game.selected = null;
       }
       break;
   }
@@ -581,6 +630,7 @@ function patienceTick(c, dtMin) {
     if (c.seat) { c.seat.occupant = null; c.seat = null; }
     sendHome(c);
     c.mood = 'angry';
+    say(c, 'angry');
     loseCustomer(c, 0.05, '😡 Too slow!');
   }
 }
@@ -599,6 +649,7 @@ function finishService(c) {
 
   c.groomed = true;
   c.sat = sat;
+  addSparkles(c);
   c.mood = sat > 0.55 ? 'happy' : 'neutral';
   c.inService = false;
   c.cape = false; c.towel = false;
@@ -650,6 +701,7 @@ function pay(c) {
   s.stats.earned += total;
   const p = iso(c.x, c.y, 58);
   addFloater(p.x, p.y, `+$${total}`, '#9be564');
+  say(c, c.sat > 0.6 ? 'happy' : 'ok');
   const emo = c.sat > 0.8 ? '😍' : c.sat > 0.6 ? '😊' : c.sat > 0.45 ? '🙂' : '😐';
   addFloater(p.x + 18, p.y - 6, emo, null, 1.6);
   sfx('cash');
@@ -688,6 +740,34 @@ function updateBarber(b, dt) {
 }
 
 // ---------- effects ----------
+
+// Speech bubble in the speaker's own language
+function say(agent, kind, delay = 0) {
+  const lang = agent.origin && PHRASES[agent.origin] ? agent.origin : pick(['al', 'si']);
+  agent.say = { text: pick(PHRASES[lang][kind]), life: 2.6 + delay, delay };
+}
+
+function tickSpeech(dt) {
+  for (const a of [...Game.customers, ...Game.barbers]) {
+    if (!a.say) continue;
+    a.say.life -= dt;
+    a.say.delay -= dt;
+    if (a.say.life <= 0) a.say = null;
+  }
+}
+
+function addSparkles(c) {
+  const p = iso(c.x, c.y, 50);
+  for (let i = 0; i < 8; i++) {
+    const a = i / 8 * Math.PI * 2;
+    Game.sparkles.push({ x: p.x, y: p.y, vx: Math.cos(a) * 26, vy: Math.sin(a) * 16 - 6, life: 0.9 });
+  }
+}
+
+function updateSparkles(dt) {
+  for (const s of Game.sparkles) { s.x += s.vx * dt; s.y += s.vy * dt; s.vx *= 0.94; s.vy *= 0.94; s.life -= dt; }
+  Game.sparkles = Game.sparkles.filter(s => s.life > 0);
+}
 
 function addFloater(x, y, text, color, life = 1.4) {
   Game.floaters.push({ x, y, text, color, life, max: life });

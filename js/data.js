@@ -84,11 +84,57 @@ const PRICE_LEVELS = [
   { name: 'Premium', price: 1.35, demand: 0.75, sat: -0.06 },
 ];
 
-const BARBER_NAMES = ['Luka', 'Marko', 'Enzo', 'Dario', 'Ivan', 'Nika', 'Sara', 'Mia', 'Leo', 'Tino', 'Rok',
-  'Jan', 'Zala', 'Maja', 'Filip', 'Ana', 'Tomas', 'Aleks', 'Bruno', 'Kai', 'Omar', 'Nina', 'Eva', 'Vito',
-  'Gal', 'Tia', 'Nejc', 'Lana', 'Miha', 'Rea'];
+// Names: Albanian (al) and Slovenian (si), split by gender (m / f)
+const NAMES = {
+  al: {
+    m: ['Arben', 'Besnik', 'Dritan', 'Ermal', 'Fatmir', 'Gëzim', 'Ilir', 'Klodian', 'Luan', 'Mentor', 'Petrit', 'Rinor',
+      'Shpend', 'Valon', 'Agron', 'Blerim', 'Driton', 'Edon', 'Flamur', 'Genti', 'Kujtim', 'Leotrim', 'Arlind', 'Endrit',
+      'Egzon', 'Alban', 'Besart', 'Florent', 'Granit', 'Jetmir', 'Lirim', 'Qendrim', 'Visar', 'Ardit'],
+    f: ['Arta', 'Besa', 'Drita', 'Elira', 'Fjolla', 'Genta', 'Hana', 'Jehona', 'Kaltrina', 'Liridona', 'Mimoza', 'Rina',
+      'Teuta', 'Vjosa', 'Blerta', 'Albana', 'Era', 'Dafina', 'Donika', 'Erona', 'Ilirjana', 'Lule', 'Majlinda', 'Shqipe'],
+    surnames: ['Krasniqi', 'Berisha', 'Gashi', 'Hoxha', 'Shala', 'Morina', 'Kelmendi', 'Rexhepi', 'Bytyqi', 'Dervishi',
+      'Hasani', 'Zeqiri', 'Leka', 'Mema', 'Kastrati', 'Dushku'],
+  },
+  si: {
+    m: ['Janez', 'Matej', 'Luka', 'Žiga', 'Nejc', 'Rok', 'Gašper', 'Tadej', 'Anže', 'Primož', 'Blaž', 'Jure', 'Miha',
+      'Tilen', 'Aljaž', 'Urban', 'Klemen', 'Domen', 'Marko', 'Jaka', 'Matevž', 'Grega', 'Bor', 'Jernej', 'Peter', 'Andraž'],
+    f: ['Ana', 'Maja', 'Nika', 'Špela', 'Urška', 'Tjaša', 'Zala', 'Eva', 'Pia', 'Neža', 'Katja', 'Lara', 'Manca', 'Tina',
+      'Petra', 'Sara', 'Brina', 'Mojca', 'Ajda', 'Lana', 'Metka', 'Živa', 'Hana', 'Vesna'],
+    surnames: ['Novak', 'Horvat', 'Kranjc', 'Zupančič', 'Kovačič', 'Potočnik', 'Mlakar', 'Kos', 'Vidmar', 'Golob',
+      'Turk', 'Kralj', 'Božič', 'Oblak', 'Dončić', 'Zajc'],
+  },
+};
+
+const ORIGINS = {
+  al: { flag: '🇦🇱', label: 'Albanian' },
+  si: { flag: '🇸🇮', label: 'Slovenian' },
+};
+
+// Short things people say, in their own language
+const PHRASES = {
+  al: {
+    greet: ['Mirëdita!', 'Tungjatjeta!', 'Si je, mjeshtër?', 'Një fade, të lutem!'],
+    happy: ['Faleminderit!', 'Shumë bukur!', 'Perfekt!', 'Super, vëlla!'],
+    ok: ['Mirë.', 'Ok, faleminderit.'],
+    angry: ['Shumë ngadalë!', 'Po iki!', 'S\'kam kohë!'],
+    full: ["S'ka vend...", 'Plot është!'],
+    next: ['I radhës!', 'Urdhëro!', 'Ulu këtu!'],
+  },
+  si: {
+    greet: ['Dober dan!', 'Živjo!', 'Kje je Cani?', 'Samo malo skrajšat!'],
+    happy: ['Hvala!', 'Super frizura!', 'Odlično!', 'Kot nov sem!'],
+    ok: ['V redu.', 'Hvala, adijo.'],
+    angry: ['Prepočasi!', 'Grem drugam!', 'Nimam časa!'],
+    full: ['Polno je...', 'Ni prostora!'],
+    next: ['Naslednji!', 'Izvolite!', 'Kar sedite!'],
+  },
+};
+
+const HAIR_STYLES_M = [0, 1, 2, 3, 4, 5];
+const HAIR_STYLES_F = [10, 11, 12, 13, 14];
 
 const SKIN_TONES = ['#f5d0b5', '#e8b894', '#d49a6a', '#b07548', '#8d5a3b', '#5e3a24'];
 const HAIR_COLORS = ['#1c1410', '#3b2417', '#6b4226', '#a0692f', '#d9b36c', '#7a7a7a', '#b8321f', '#e8e0d0'];
 const SHIRT_COLORS = ['#457b9d', '#e76f51', '#2a9d8f', '#8d6cab', '#f4a261', '#264653', '#e9c46a', '#6c757d', '#d62828', '#3a86ff'];
-const PANTS_COLORS = ['#2b2d42', '#3d405b', '#5c4d3c', '#1d3557', '#495057'];
+const PANTS_COLORS = ['#2b2d42', '#3d405b', '#5c4d3c', '#1d3557', '#495057', '#6b705c'];
+const SHOE_COLORS = ['#2a2230', '#5a3825', '#e9ecef', '#1d1d1d', '#8d6e63'];

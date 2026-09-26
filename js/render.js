@@ -4,6 +4,7 @@ const Renderer = {
   canvas: null, ctx: null, dpr: 1, w: 0, h: 0,
   cam: { x: 0, y: 0, zoom: 1 },
   hover: null,   // hovered tile {x,y}
+  hoverAgent: null,
 
   init(canvas) {
     this.canvas = canvas;
@@ -52,9 +53,12 @@ const Renderer = {
     const st = stage(), n = st.size;
     // floating diorama slab
     box(ctx, -0.25, -0.25, n + 0.25, n + 0.25, -22, 22, '#3d405b', { top: '#3d405b', left: '#2e3148', right: '#23263a' });
+    this.drawPlaque(ctx, st, n);
     this.drawFloor(ctx, st, n);
     this.drawWalls(ctx, st, n, t);
+    this.drawWallDecor(ctx, st, n, t);
     this.drawBuildHighlight(ctx);
+    this.drawSelection(ctx, t);
 
     // depth-sorted entities
     const list = [];
@@ -63,9 +67,11 @@ const Renderer = {
     list.sort((a, b) => a.d - b.d);
     list.forEach(e => e.fn());
 
+    this.drawLights(ctx, st, n, t);
     this.drawGhost(ctx, t);
     for (const p of Game.particles) { ctx.fillStyle = p.color; ctx.globalAlpha = Math.min(1, p.life); ctx.fillRect(p.x, p.y, 2, 1.5); }
     ctx.globalAlpha = 1;
+    this.drawSparkles(ctx);
     this.drawOverlays(ctx, t);
     ctx.restore();
     this.drawDaylight(ctx);
@@ -113,6 +119,15 @@ const Renderer = {
       const q = iso(1.2, 4.6);
       ellipse(ctx, q.x, q.y, 7, 3, 'rgba(40,40,50,0.18)');
     }
+    // ambient occlusion where the floor meets the walls
+    const ao = (p0, p1, poly4) => {
+      const g = ctx.createLinearGradient(p0.x, p0.y, p1.x, p1.y);
+      g.addColorStop(0, 'rgba(0,0,0,0.28)');
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      poly(ctx, poly4, g);
+    };
+    ao(iso(0, n / 2), iso(0.7, n / 2), [iso(0, 0), iso(0, n), iso(0.7, n), iso(0.7, 0)]);
+    ao(iso(n / 2, 0), iso(n / 2, 0.7), [iso(0, 0), iso(n, 0), iso(n, 0.7), iso(0, 0.7)]);
     // door mat
     const d = doorTile();
     poly(ctx, [iso(d.x + 0.12, d.y + 0.1), iso(d.x + 0.88, d.y + 0.1), iso(d.x + 0.88, d.y + 0.7), iso(d.x + 0.12, d.y + 0.7)], '#8b2c2c');
@@ -132,6 +147,17 @@ const Renderer = {
     ctx.beginPath();
     let a = iso(0, n, wz), b = iso(0, 0, wz), c = iso(n, 0, wz);
     ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.lineTo(c.x, c.y); ctx.stroke();
+    // soft light falloff: brighter near the top of the walls
+    for (const face of [[iso(0, 0, 0), iso(0, n, 0), iso(0, n, H), iso(0, 0, H)], [iso(0, 0, 0), iso(n, 0, 0), iso(n, 0, H), iso(0, 0, H)]]) {
+      const g = ctx.createLinearGradient(0, face[2].y, 0, face[0].y);
+      g.addColorStop(0, 'rgba(255,255,255,0.10)');
+      g.addColorStop(0.6, 'rgba(255,255,255,0)');
+      g.addColorStop(1, 'rgba(0,0,0,0.16)');
+      poly(ctx, face, g);
+    }
+    // baseboard
+    poly(ctx, [iso(0, 0, 0), iso(0, n, 0), iso(0, n, 4), iso(0, 0, 4)], shade(dark, -0.35));
+    poly(ctx, [iso(0, 0, 0), iso(n, 0, 0), iso(n, 0, 4), iso(0, 0, 4)], shade(dark, -0.3));
 
     if (st.floor === 'concrete') {
       // corrugated garage door panel on the left wall
@@ -231,11 +257,139 @@ const Renderer = {
     ctx.beginPath(); ctx.moveTo(m1.x, m1.y); ctx.lineTo(m2.x, m2.y); ctx.stroke();
   },
 
+  // name plate on the front of the diorama
+  drawPlaque(ctx, st, n) {
+    ctx.save();
+    const len = Math.hypot(TW / 2, TH / 2);
+    const o = iso(n / 2 - 1.6, n, -4);
+    ctx.transform(TW / 2 / len, TH / 2 / len, 0, 1, o.x, o.y);
+    roundRect(ctx, 0, 2, len * 3.2, 14, 3, '#15172a', 'rgba(241,196,83,0.6)');
+    ctx.font = '600 9px Fredoka, sans-serif';
+    ctx.fillStyle = '#f1c453'; ctx.textAlign = 'center';
+    ctx.fillText(`CANI · ${st.name.toUpperCase()}`, len * 1.6, 12);
+    ctx.restore();
+  },
+
+  drawWallDecor(ctx, st, n, t) {
+    if (st.floor === 'concrete') {
+      // pegboard with tools and a strip light
+      ctx.save();
+      const len = wallTransform(ctx, 'right', 1.6, 0);
+      const w = len * 1.5;
+      roundRect(ctx, 0, -74, w, 34, 2, '#c8a36a', 'rgba(0,0,0,0.3)');
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      for (let x = 4; x < w; x += 5) for (let y = -70; y < -42; y += 5) ctx.fillRect(x, y, 1, 1);
+      ctx.strokeStyle = '#6c757d'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(10, -60, 4, 0, Math.PI * 2); ctx.arc(10, -52, 4, 0, Math.PI * 2); ctx.stroke();   // scissors
+      ctx.fillStyle = '#343a40'; ctx.fillRect(22, -68, 7, 16); ctx.fillStyle = '#adb5bd'; ctx.fillRect(22, -70, 7, 3);  // clipper
+      ctx.fillStyle = '#e63946'; ctx.fillRect(36, -66, 3, 20); ctx.fillStyle = '#212529'; ctx.fillRect(34, -48, 7, 2);    // comb
+      ctx.fillStyle = '#4ea8de'; roundRect(ctx, 44, -64, 6, 14, 2, '#4ea8de');                                            // spray bottle
+      roundRect(ctx, 2, -92, w - 4, 5, 2, '#f8f9fa', 'rgba(0,0,0,0.3)');                                                   // strip light
+      ctx.restore();
+      return;
+    }
+    // hairstyle poster next to the door
+    ctx.save();
+    const len = wallTransform(ctx, 'right', n - 2.9, 0);
+    const w = len * 0.72;
+    roundRect(ctx, 0, -86, w, 50, 2, st.trim);
+    roundRect(ctx, 2.5, -83.5, w - 5, 45, 1, '#f7f1e3');
+    ctx.fillStyle = '#1b1b1f'; ctx.font = 'bold 6px Fredoka, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('STYLES', w / 2, -76);
+    const heads = [[w * 0.3, -64, '#1c1410', 0], [w * 0.7, -64, '#a0692f', 1], [w * 0.3, -48, '#6b4226', 2], [w * 0.7, -48, '#1c1410', 3]];
+    for (const [hx, hy, col, k] of heads) {
+      circle(ctx, hx, hy, 4.5, '#e8b894');
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      if (k === 0) ctx.arc(hx, hy - 1, 4.8, Math.PI, 0);
+      else if (k === 1) { ctx.arc(hx, hy - 1, 4.8, Math.PI, 0); ctx.ellipse(hx + 1.5, hy - 5.5, 3, 2, 0.3, 0, Math.PI * 2); }
+      else if (k === 2) ctx.arc(hx, hy - 2, 4.8, Math.PI * 1.1, Math.PI * 1.9);
+      else { ctx.arc(hx, hy - 1, 4.8, Math.PI, 0); ctx.arc(hx, hy + 3, 3.8, 0.1, Math.PI - 0.1); }
+      ctx.fill();
+      ctx.fillStyle = '#e8b894'; ctx.fillRect(hx - 2, hy + 4, 4, 3);
+    }
+    ctx.restore();
+  },
+
+  // wall lamps that glow warmer as the evening comes
+  drawLights(ctx, st, n, t) {
+    const hour = Game.state.time / 60;
+    const k = 0.35 + clamp((hour - 16) / 3, 0, 1) * 0.55;
+    const lamps = [];
+    if (st.floor === 'concrete') lamps.push({ x: 2.35, y: 0, z: 90, r: 120, col: '220,235,255' });
+    else {
+      for (let mx = 2; mx < n - 3; mx += 2) lamps.push({ x: mx - 0.5, y: 0, z: 80, r: 90, col: '255,196,120' });
+      for (let wy = 2.8; wy + 0.2 < n - 5; wy += 3) lamps.push({ x: 0, y: wy + 1.4, z: 80, r: 90, col: '255,196,120' });
+    }
+    ctx.save();
+    for (const l of lamps) {
+      const p = iso(l.x, l.y, l.z);
+      if (st.floor !== 'concrete') {
+        // brass sconce
+        roundRect(ctx, p.x - 3, p.y - 2, 6, 9, 2, '#b08d57', 'rgba(0,0,0,0.3)');
+        ellipse(ctx, p.x, p.y - 3, 5, 3, `rgba(${l.col},0.95)`);
+      }
+      ctx.globalCompositeOperation = 'lighter';
+      const flick = 1 + Math.sin(t * 7 + l.x * 3) * 0.02;
+      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, l.r * flick);
+      g.addColorStop(0, `rgba(${l.col},${0.22 * k})`);
+      g.addColorStop(1, `rgba(${l.col},0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(p.x, p.y, l.r, 0, Math.PI * 2); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    ctx.restore();
+  },
+
+  drawSelection(ctx, t) {
+    const a = Game.selected;
+    if (!a) return;
+    const p = iso(a.x, a.y);
+    ctx.save();
+    ctx.strokeStyle = '#f1c453'; ctx.lineWidth = 2;
+    ctx.setLineDash([5, 4]); ctx.lineDashOffset = -t * 20;
+    ctx.beginPath(); ctx.ellipse(p.x, p.y, 15, 7.5, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  },
+
+  drawSparkles(ctx) {
+    for (const s of Game.sparkles) {
+      const r = 3.5 * Math.min(1, s.life * 1.5);
+      ctx.globalAlpha = Math.min(1, s.life * 1.6);
+      ctx.fillStyle = '#ffe066';
+      ctx.beginPath();
+      ctx.moveTo(s.x, s.y - r); ctx.lineTo(s.x + r * 0.3, s.y - r * 0.3); ctx.lineTo(s.x + r, s.y);
+      ctx.lineTo(s.x + r * 0.3, s.y + r * 0.3); ctx.lineTo(s.x, s.y + r); ctx.lineTo(s.x - r * 0.3, s.y + r * 0.3);
+      ctx.lineTo(s.x - r, s.y); ctx.lineTo(s.x - r * 0.3, s.y - r * 0.3); ctx.closePath(); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  },
+
+  // the frontmost person under a screen point
+  pickAgent(sx, sy) {
+    const w = this.toWorld(sx, sy);
+    let best = null;
+    for (const a of [...Game.customers, ...Game.barbers]) {
+      if ((a.alpha ?? 1) < 0.5) continue;
+      const p = iso(a.x, a.y, a.sitting ? 3 : 0);
+      if (w.x > p.x - 13 && w.x < p.x + 13 && w.y > p.y - 56 && w.y < p.y + 5) {
+        if (!best || a.x + a.y > best.x + best.y) best = a;
+      }
+    }
+    return best;
+  },
+
   drawItem(ctx, it, t) {
     const fn = ItemSprites[it.type];
     if (UI.tool && UI.tool.mode === 'sell' && this.hover && this.hover.x === it.x && this.hover.y === it.y) {
       tileDiamond(ctx, it.x, it.y, 'rgba(230,57,70,0.45)');
     }
+    const c = iso(it.x + 0.5, it.y + 0.5);
+    const g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, 26);
+    g.addColorStop(0, 'rgba(0,0,0,0.28)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.ellipse(c.x, c.y, 26, 13, 0, 0, Math.PI * 2); ctx.fill();
     if (fn) fn.call(ItemSprites, ctx, it.x, it.y, t);
   },
 
@@ -259,6 +413,7 @@ const Renderer = {
   },
 
   drawOverlays(ctx, t) {
+    const hovered = this.hoverAgent;
     for (const c of Game.customers) {
       if ((c.state === 'waiting' || c.state === 'enter') && c.alpha > 0.5) {
         const p = iso(c.x, c.y, (c.sitting ? 14 : 0) + 52);
@@ -277,12 +432,20 @@ const Renderer = {
       }
     }
     for (const b of Game.barbers) {
-      if (UI.showNames) {
-        const p = iso(b.x, b.y, 58);
-        ctx.font = 'bold 8px Fredoka, sans-serif'; ctx.textAlign = 'center';
-        ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillText(b.data.name, p.x + 0.5, p.y + 0.5);
-        ctx.fillStyle = b.owner ? '#f1c453' : '#fff'; ctx.fillText(b.data.name, p.x, p.y);
+      if (UI.showNames || b === hovered || b === Game.selected) {
+        const p = iso(b.x, b.y, 66);
+        nameTag(ctx, `✂ ${b.data.name}`, p.x, p.y, b.owner ? '#f1c453' : '#fff');
       }
+    }
+    for (const c of Game.customers) {
+      if (c !== hovered && c !== Game.selected) continue;
+      const p = iso(c.x, c.y, (c.sitting ? 17 : 14) + 50);
+      nameTag(ctx, `${ORIGINS[c.origin].flag} ${c.name}`, p.x, p.y - 10, '#fff');
+    }
+    for (const a of [...Game.customers, ...Game.barbers]) {
+      if (!a.say || a.say.delay > 0 || (a.alpha ?? 1) < 0.5) continue;
+      const p = iso(a.x, a.y, (a.sitting ? 17 : 14) + 52);
+      speechBubble(ctx, a.say.text, p.x + 10, p.y - 12, Math.min(1, a.say.life * 2));
     }
     for (const f of Game.floaters) {
       ctx.globalAlpha = clamp(f.life / f.max * 1.5, 0, 1);
@@ -306,6 +469,29 @@ const Renderer = {
     ctx.fillRect(0, 0, this.w, this.h);
   },
 };
+
+function nameTag(ctx, text, x, y, color) {
+  ctx.font = '600 8.5px Fredoka, sans-serif';
+  ctx.textAlign = 'center';
+  const w = ctx.measureText(text).width + 8;
+  roundRect(ctx, x - w / 2, y - 8, w, 11, 5, 'rgba(15,16,30,0.75)');
+  ctx.fillStyle = color;
+  ctx.fillText(text, x, y + 0.5);
+}
+
+function speechBubble(ctx, text, x, y, alpha) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.font = '600 9px Fredoka, sans-serif';
+  ctx.textAlign = 'left';
+  const w = ctx.measureText(text).width + 12, h = 15;
+  roundRect(ctx, x, y - h, w, h, 7, '#ffffff', 'rgba(20,20,40,0.5)');
+  ctx.beginPath(); ctx.moveTo(x + 5, y - 1); ctx.lineTo(x - 2, y + 5); ctx.lineTo(x + 11, y - 1); ctx.closePath();
+  ctx.fillStyle = '#ffffff'; ctx.fill();
+  ctx.fillStyle = '#1d1a2b';
+  ctx.fillText(text, x + 6, y - 4.5);
+  ctx.restore();
+}
 
 function serviceIcon(sv) {
   return { buzz: '⚡', classic: '✂️', beard: '🧔', fade: '💈', wash: '🚿', shave: '🪒', color: '🎨', signature: '⭐', royal: '👑', vip: '🌟' }[sv.id] || '✂️';

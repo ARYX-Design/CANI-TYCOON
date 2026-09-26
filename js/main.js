@@ -26,6 +26,8 @@
   $('#panelClose').addEventListener('click', closePanel);
   $('#panelBody').addEventListener('click', handlePanelClick);
   $('#panelBody').addEventListener('change', handlePanelChange);
+  $('#panelBody').addEventListener('keydown', handlePanelKey);
+  $('#inspect').addEventListener('click', handleInspectClick);
   $('#buildHint').addEventListener('click', e => { if (e.target.closest('[data-hint="cancel"]')) setTool(null); });
   $('#speedBtns').addEventListener('click', e => {
     const b = e.target.closest('button');
@@ -38,7 +40,7 @@
 
   window.addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT') return;
-    if (e.key === 'Escape') { if (UI.tool) setTool(null); else closePanel(); }
+    if (e.key === 'Escape') { if (UI.tool) setTool(null); else if (Game.selected) Game.selected = null; else closePanel(); }
     if (e.key === ' ') { Game.paused = !Game.paused; e.preventDefault(); }
     if (['1', '2', '3'].includes(e.key)) { Game.paused = false; Game.speed = +e.key; }
     if (e.key === 'b') openPanel('build');
@@ -61,7 +63,11 @@
   });
 
   canvas.addEventListener('pointermove', e => {
-    if (e.pointerType === 'mouse' || pointers.size <= 1) Renderer.hover = Renderer.tileAt(e.clientX, e.clientY);
+    if (e.pointerType === 'mouse' || pointers.size <= 1) {
+      Renderer.hover = Renderer.tileAt(e.clientX, e.clientY);
+      Renderer.hoverAgent = e.pointerType === 'mouse' && !UI.tool ? Renderer.pickAgent(e.clientX, e.clientY) : null;
+      canvas.style.cursor = Renderer.hoverAgent ? 'pointer' : '';
+    }
     if (!pointers.has(e.pointerId)) return;
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pinch && pointers.size === 2) {
@@ -85,7 +91,11 @@
       const tile = Renderer.tileAt(e.clientX, e.clientY);
       Renderer.hover = tile;
       if (UI.tool) toolClick(tile);
-      else if (UI.panel && window.innerWidth < 760) closePanel();
+      else {
+        Game.selected = Renderer.pickAgent(e.clientX, e.clientY);
+        if (!Game.selected && UI.panel && window.innerWidth < 760) closePanel();
+        updateInspector();
+      }
     }
     drag = null;
   };
