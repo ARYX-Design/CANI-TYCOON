@@ -51,6 +51,8 @@ button:disabled { cursor: not-allowed; }
 .brand { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; line-height: 1; }
 .brand img { height: 34px; width: auto; display: block; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6)); }
 .brand span { font-size: 9px; letter-spacing: 3px; color: var(--muted); text-transform: uppercase; font-weight: 600; }
+.brand-credit { font-size: 10px; letter-spacing: 1px; color: var(--brand); text-decoration: none; font-weight: 600; opacity: 0.9; }
+.brand-credit:hover, .brand-credit:focus-visible { opacity: 1; text-decoration: underline; }
 .hud { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
 .chip {
   background: rgba(0, 0, 0, 0.45); border: 1px solid var(--line);
@@ -342,6 +344,7 @@ body.view3d #rotateBtns { display: flex; }
   #topbar { flex-wrap: wrap; gap: 6px; padding: 8px 10px; }
   .brand img { height: 26px; }
   .brand span { font-size: 7px; letter-spacing: 2px; }
+  .brand-credit { font-size: 9px; }
   .hud { order: 3; flex-basis: 100%; gap: 4px; }
   .chip { font-size: 12px; padding: 4px 8px; }
   .chip.money { font-size: 14px; }
