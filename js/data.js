@@ -1,5 +1,17 @@
 // CANI Barber Tycoon — static game data (locations, furniture, services, upgrades)
 
+// Brand: the CANI Barbershop logo, and the game's creator
+const LOGO = new Image();
+LOGO.src = 'img/logo-256.png';
+const LOGO_WORDMARK = new Image();
+LOGO_WORDMARK.src = 'img/logo-wordmark.png';
+const CREATOR = { name: 'xardiig', instagram: 'https://www.instagram.com/xardiig/' };
+// one-time coin bonus for following on Instagram (the server can override this list)
+const SOCIAL_REWARDS = [
+  { id: 'xardiig', title: 'Follow the game creator', handle: '@xardiig', url: CREATOR.instagram, coins: 50 },
+];
+const logoReady = img => img.complete && img.naturalWidth > 0;
+
 const MIN_PER_SEC = 4;          // game minutes that pass per real second at 1x speed
 const OPEN_TIME = 9 * 60;       // 09:00
 const CLOSE_TIME = 19 * 60;     // 19:00

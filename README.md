@@ -1,5 +1,9 @@
 # CANI Barber Tycoon 💈
 
+<img src="img/logo.png" alt="CANI Barbershop logo" width="160">
+
+**Game by [xardiig](https://www.instagram.com/xardiig/)** · for CANI Barbershop
+
 A 3D isometric barbershop tycoon game (in the spirit of burger-shop tycoon games) that runs in the browser.
 The shop is rendered in real-time 3D with Three.js (lighting, shadows, lamps that glow in the evening).
 A classic 2D view is available in the ⚙️ menu and is used automatically when WebGL isn't available.
@@ -27,6 +31,9 @@ You can also serve the folder, for example with `npx serve .`.
   customers drop, from the daily opening bonus and by expanding. In the **Rewards** tab players exchange coins for
   **real coupons at the barbershop**: free coffee, 10% off, 20% off, free beard trim, free haircut. Each coupon gets a
   one-time code and QR code to show at the counter (see *Real rewards* below).
+- 📸 **Instagram bonus:** in Rewards, tap **Follow** to open [@xardiig](https://www.instagram.com/xardiig/) on
+  Instagram, then **Claim** ⭐50 once. Instagram doesn't let games check who follows an account, so this is on trust
+  (one claim per player/account). The list lives in `server/social.json`; add the barbershop's own account there too.
 - 🛎️ Later you can hire a **Receptionist**, **Cashier** and **Cleaner** (Upgrades tab) to automate these jobs.
 - 🎵 Lo-fi background music (it gets richer as the shop grows) and sound effects: door bell, scissors, clippers, register,
   coins, sweeping. Toggle them with the 🎵 button or in the ⚙️ menu.
@@ -134,6 +141,12 @@ phone or tablet. Scanning a coupon's QR code with the phone camera opens the cou
   email addresses could still make several accounts; keep reward prices sensible.
 - The preview link on claude.ai can't reach a server, so exchanging coins is switched off there.
 
+## Credits
+
+- **Game:** [xardiig](https://www.instagram.com/xardiig/)
+- **Logo:** CANI Barbershop (`img/logo.png`, `img/logo-wordmark.png`)
+- [Three.js](https://threejs.org) (MIT), [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) (MIT)
+
 ## Code layout
 
 | File | Purpose |
@@ -148,6 +161,8 @@ phone or tablet. Scanning a coupon's QR code with the phone camera opens the cou
 | `staff.html`, `js/staff.js` | Coupon desk for staff: PIN login, check / scan a code, mark as used |
 | `server/server.js` | Node server: serves the game, rewards API, daily caps, coupon codes |
 | `server/rewards.json` | The real rewards menu |
+| `server/social.json` | Instagram follow bonuses |
+| `img/` | Logo, wordmark and icons |
 | `js/vendor/qrcode.js` | QR code generator (MIT) |
 | `js/audio.js` | Procedural background music and sound effects (Web Audio) |
 | `js/render3d.js` | 3D renderer (Three.js): room, furniture and character models, lighting, highlights |

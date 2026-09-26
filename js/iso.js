@@ -113,3 +113,20 @@ function wallTransform(ctx, wall, along, z) {
   }
   return len; // pixels per tile along the wall
 }
+
+// The CANI Barbershop logo as a round badge; `glow` adds a warm halo (lit sign)
+function drawLogoBadge(ctx, x, y, size, glow) {
+  ctx.save();
+  if (glow) { ctx.shadowColor = 'rgba(226,194,122,0.85)'; ctx.shadowBlur = glow; }
+  ctx.beginPath(); ctx.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2);
+  ctx.fillStyle = '#050505'; ctx.fill();
+  ctx.shadowBlur = 0;
+  if (typeof LOGO !== 'undefined' && logoReady(LOGO)) ctx.drawImage(LOGO, x, y, size, size);
+  else {
+    ctx.fillStyle = '#c9a24f'; ctx.font = `bold ${size * 0.3}px Fredoka, sans-serif`; ctx.textAlign = 'center';
+    ctx.fillText('CANI', x + size / 2, y + size * 0.58);
+  }
+  ctx.strokeStyle = 'rgba(201,162,79,0.9)'; ctx.lineWidth = Math.max(1, size / 30);
+  ctx.beginPath(); ctx.arc(x + size / 2, y + size / 2, size / 2 - ctx.lineWidth / 2, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+}

@@ -341,6 +341,7 @@ function menuPanel() {
       <div><span>Shop appeal</span><b>${decorScore()}</b></div>
       <div><span>Days in business</span><b>${s.day}</b></div>
     </div>
+    <div class="credit"><span>🎮 Game by <b>${CREATOR.name}</b> · Logo: CANI Barbershop</span><a class="ig-btn" href="${CREATOR.instagram}" target="_blank" rel="noopener">📸 @${CREATOR.name}</a></div>
     <div class="menu-btns">
       ${R3.ok ? `<button class="btn" data-action="toggleView">${R3.active ? '🧊 View: 3D' : '🖼️ View: classic 2D'}</button>` : ''}
       <button class="btn" data-action="toggleMusic">${Sound.musicOn ? '🎵 Music on' : '🔇 Music off'}</button>
@@ -379,6 +380,12 @@ function handlePanelClick(e) {
         [{ label: 'Cancel' }, { label: 'Sign out', cls: 'danger', fn: signOut }]);
       break;
     case 'showCoupon': showCoupon(el.dataset.id); break;
+    case 'igOpen':
+      // let the link open in a new tab, then enable the Claim button
+      markSocialOpened(el.dataset.id);
+      setTimeout(() => { if (UI.panel === 'rewards') renderPanel(); }, 400);
+      return;
+    case 'igClaim': claimSocial(el.dataset.id); return;
     case 'payAll': r = payAllBills(); if (r.ok) toast('🧾 All bills paid!'); break;
     case 'toggleNames': UI.showNames = !UI.showNames; break;
     case 'recenter': Renderer.fitCamera(); break;
@@ -491,7 +498,7 @@ function showModal(html, buttons) {
 }
 
 function showIntro() {
-  showModal(`<div class="logo-big">CANI<span>Barber Tycoon</span></div>
+  showModal(`<div class="logo-big"><img src="${LOGO.src}" alt="CANI Barbershop"><span>Barber Tycoon</span></div>
     <p>Every legend starts somewhere. <b>Cani</b> starts in a <b>garage</b> with one barber chair, two plastic chairs and a plant.</p>
     <ul class="howto">
       <li>👆 Customers from Albania 🇦🇱 and Slovenia 🇸🇮 walk in and sit down. <b>Tap a customer, then tap a chair</b> to send them for a cut.</li>
@@ -502,6 +509,7 @@ function showIntro() {
       <li>💇 <b>Hire</b> barbers and give them any name you like ✏️. Unlock <b>services</b> and buy <b>upgrades</b>.</li>
       <li>🏙️ <b>Expand</b> from the garage to a corner shop, downtown, a studio and finally the <b>Cani Empire HQ</b>.</li>
     </ul>
+    <div class="credit"><span>🎮 Game by <b>${CREATOR.name}</b></span><a class="ig-btn" href="${CREATOR.instagram}" target="_blank" rel="noopener">📸 Follow @${CREATOR.name} · +⭐</a></div>
     <p class="muted small">Drag to move the camera, scroll / pinch to zoom, ⟲ ⟳ or Q / E to rotate (tap for 45°, hold to spin), right-drag or twist two fingers to rotate freely, 🧭 to reset. Space pauses, 1-3 set speed.</p>`,
     [{ label: "Let's cut some hair ✂️", cls: 'primary', fn: () => { unlockAudio(); Game.state.introSeen = true; Game.paused = false; } }]);
 }

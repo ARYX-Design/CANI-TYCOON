@@ -263,12 +263,12 @@ function bicycle(color) {
 function aFrameSign(g, x, z, rotY) {
   const s = new THREE.Group();
   const tex = canvasTex(128, 192, (ctx) => {
-    ctx.fillStyle = '#1b1b1f'; ctx.fillRect(0, 0, 128, 192);
-    ctx.strokeStyle = '#f1c453'; ctx.lineWidth = 4; ctx.strokeRect(6, 6, 116, 180);
-    ctx.fillStyle = '#e63946'; ctx.font = 'bold 36px Fredoka, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('CANI', 64, 52);
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 15px Fredoka, sans-serif'; ctx.fillText('BARBER SHOP', 64, 78);
-    ctx.font = '38px serif'; ctx.fillText('✂', 64, 128);
-    ctx.fillStyle = '#f1c453'; ctx.font = 'bold 16px Fredoka, sans-serif'; ctx.fillText('ODPRTO · OPEN', 64, 168);
+    ctx.fillStyle = '#0b0b0c'; ctx.fillRect(0, 0, 128, 192);
+    ctx.strokeStyle = '#c9a24f'; ctx.lineWidth = 4; ctx.strokeRect(6, 6, 116, 180);
+    drawLogoBadge(ctx, 14, 14, 100, 0);
+    ctx.fillStyle = '#e2c27a'; ctx.font = 'bold 14px Fredoka, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('ŠIŠANJE · BRITJE', 64, 138);
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 16px Fredoka, sans-serif'; ctx.fillText('ODPRTO · OPEN', 64, 168);
   });
   const face = new THREE.MeshLambertMaterial({ map: tex });
   const dark = mat('#1b1b1f');
@@ -367,10 +367,9 @@ function buildStreet(roomGroup, n, st) {
   const bracket = mesh(new THREE.BoxGeometry(0.04, 0.04, 0.5), mat('#1b1b1f'), false);
   bracket.position.set(d.x + 1.05, 2.1, -0.5);
   const sTex = canvasTex(128, 96, (ctx) => {
-    ctx.fillStyle = '#1b1b1f'; ctx.fillRect(0, 0, 128, 96);
-    ctx.strokeStyle = '#f1c453'; ctx.lineWidth = 4; ctx.strokeRect(5, 5, 118, 86);
-    ctx.fillStyle = '#e63946'; ctx.font = 'bold 40px Fredoka, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('CANI', 64, 58);
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 12px Fredoka, sans-serif'; ctx.fillText('BARBER', 64, 80);
+    ctx.fillStyle = '#0b0b0c'; ctx.fillRect(0, 0, 128, 96);
+    ctx.strokeStyle = '#c9a24f'; ctx.lineWidth = 4; ctx.strokeRect(5, 5, 118, 86);
+    drawLogoBadge(ctx, 24, 8, 80, 0);
   });
   const board = mesh(new THREE.BoxGeometry(0.03, 0.42, 0.56), [new THREE.MeshLambertMaterial({ map: sTex }), new THREE.MeshLambertMaterial({ map: sTex }), mat('#1b1b1f'), mat('#1b1b1f'), mat('#1b1b1f'), mat('#1b1b1f')]);
   board.position.set(d.x + 1.05, 1.82, -0.55);

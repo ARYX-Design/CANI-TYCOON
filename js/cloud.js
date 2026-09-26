@@ -43,6 +43,7 @@ async function cloudInit() {
     Cloud.rewards = r.rewards;
     Cloud.cap = r.cap;
     Cloud.signIn = r.signIn;
+    if (Array.isArray(r.social)) Cloud.social = r.social;
   } catch (e) { return; }   // no server here: stay offline
   Cloud.token = load(TOKEN_KEY);
   Cloud.pending = Math.max(0, +load(PENDING_KEY) || 0);
@@ -147,7 +148,7 @@ function showCoupon(code) {
   if (!c) return;
   const exp = new Date(c.expiresAt).toLocaleDateString();
   showModal(`<div class="coupon-show ${c.status}">
-      <div class="coupon-brand">CANI <span>Barber Shop</span></div>
+      <div class="coupon-brand"><img src="${LOGO.src}" alt="CANI Barbershop"></div>
       <div class="coupon-reward">${c.icon} ${c.name}</div>
       ${c.status === 'active' ? `<div class="coupon-qr">${qrSvg(staffUrl(c.code))}</div>` : `<div class="coupon-stamp">${c.status === 'used' ? 'USED' : 'EXPIRED'}</div>`}
       <div class="coupon-code">${c.code}</div>
@@ -249,4 +250,56 @@ function redeemConfirm(id) {
   if (!Cloud.me || !Cloud.me.signedIn) { openSignIn(id); return; }
   showModal(`<h2>${rw.icon} ${rw.name}</h2><p>Exchange <b>⭐ ${rw.cost}</b> Cani Coins for this coupon? You'll get a code and QR to show at the counter.</p>`,
     [{ label: 'Cancel' }, { label: `Exchange ⭐ ${rw.cost}`, cls: 'primary', fn: () => redeemReward(rw.id) }]);
+}
+
+// ---------- Instagram follow bonus ----------
+// Instagram doesn't let a game check who follows an account, so the bonus is on trust:
+// the player opens the profile, and can claim the coins once afterwards.
+
+function socialList() { return Cloud.online && Cloud.social ? Cloud.social : SOCIAL_REWARDS; }
+
+function socialClaimed(id) {
+  if (Cloud.online && Cloud.me) return (Cloud.me.bonuses || []).includes(id);
+  return !!(Game.state.social && Game.state.social[id] === 'claimed');
+}
+
+function socialOpened(id) { return !!(Game.state.social && Game.state.social[id]); }
+
+function markSocialOpened(id) {
+  Game.state.social = Game.state.social || {};
+  if (!Game.state.social[id]) Game.state.social[id] = 'opened';
+  saveGame();
+}
+
+async function claimSocial(id) {
+  const s = socialList().find(x => x.id === id);
+  if (!s || socialClaimed(id)) return;
+  if (Cloud.online) {
+    try {
+      const r = await api('POST', '/api/bonus', { id });
+      Cloud.me = r;
+      syncCoinDisplay();
+    } catch (e) { toast(e.message, 2500, 'warn'); return; }
+  } else {
+    addCoins(s.coins);
+  }
+  Game.state.social[id] = 'claimed';
+  saveGame();
+  sfx('fanfare');
+  toast(`📸 Thanks for following ${s.handle}! +⭐${s.coins}`, 3500, 'hint');
+  if (UI.panel === 'rewards') renderPanel();
+}
+
+function socialCardsHTML() {
+  return socialList().map(s => {
+    const claimed = socialClaimed(s.id), opened = socialOpened(s.id);
+    return `<div class="social-card">
+      <div class="ig-icon">📸</div>
+      <div class="card-main"><div class="card-title">${s.title}</div>
+      <div class="card-desc">Follow <b>${s.handle}</b> on Instagram and get <b>⭐ ${s.coins}</b> once.</div></div>
+      <div class="side">${claimed ? '<span class="badge">Claimed ✓</span>'
+        : `<a class="ig-btn" href="${s.url}" target="_blank" rel="noopener" data-action="igOpen" data-id="${s.id}">Follow</a>
+           <button class="btn small primary" data-action="igClaim" data-id="${s.id}" ${opened ? '' : 'disabled'} title="${opened ? '' : 'Tap Follow first'}">Claim ⭐ ${s.coins}</button>`}</div>
+    </div>`;
+  }).join('');
 }

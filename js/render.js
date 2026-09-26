@@ -187,25 +187,8 @@ const Renderer = {
     ctx.save();
     const signAt = st.floor === 'concrete' ? n - 0.9 : n - 0.6;
     wallTransform(ctx, 'left', signAt, 0);
-    if (st.floor === 'concrete') {
-      ctx.font = 'bold 30px "Permanent Marker", "Fredoka", cursive';
-      ctx.fillStyle = '#d62828';
-      ctx.fillText("CANI'S", 14, -36);
-      ctx.font = 'bold 11px "Fredoka", sans-serif';
-      ctx.fillStyle = '#1b1b1b';
-      ctx.fillText('BARBER SHOP', 30, -20);
-    } else {
-      const glow = st.trim;
-      roundRect(ctx, 10, -H + 8, 150, 38, 6, 'rgba(10,10,20,0.85)');
-      ctx.shadowColor = glow; ctx.shadowBlur = 10 + Math.sin(t * 3) * 3;
-      ctx.font = 'bold 26px "Fredoka", sans-serif';
-      ctx.fillStyle = glow === '#e63946' ? '#ff5d6c' : glow;
-      ctx.fillText('CANI', 22, -H + 37);
-      ctx.shadowBlur = 0;
-      ctx.font = 'bold 10px "Fredoka", sans-serif';
-      ctx.fillStyle = '#fff';
-      ctx.fillText('BARBER CO.', 92, -H + 33);
-    }
+    if (st.floor === 'concrete') drawLogoBadge(ctx, 20, -76, 60, 0);
+    else drawLogoBadge(ctx, 16, -H + 6, 66, 12 + Math.sin(t * 3) * 3);
     ctx.restore();
 
     // clock on the right wall

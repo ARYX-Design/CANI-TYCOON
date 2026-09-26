@@ -1,6 +1,11 @@
 // Boot, main loop and input
 
-(function () {
+(async function () {
+  // the logo is painted onto signs and walls, so give it a moment to load
+  await Promise.race([
+    Promise.all([LOGO, LOGO_WORDMARK].map(img => (img.decode ? img.decode() : Promise.resolve()).catch(() => {}))),
+    new Promise(res => setTimeout(res, 1500)),
+  ]);
   const canvas = $('#game');
   Renderer.init(canvas);
   initR3();

@@ -285,6 +285,7 @@ function paintFloor(ctx, st, n) {
 }
 
 // Paint the inside of both walls. Coordinates: u along the wall in px (35.78 per tile), v from the top (0..96).
+LOGO.addEventListener('load', () => { R3.lastPaint = -1; R3.roomKey = ''; });
 function paintWalls(t) {
   const st = stage(), n = st.size, H = WALL_H;
   for (const side of ['left', 'right', 'east', 'south']) {
@@ -324,25 +325,12 @@ function paintWalls(t) {
         ctx.fillStyle = '#b3b8bf'; ctx.fillRect(u0, H - 78, u1 - u0, 78);
         ctx.strokeStyle = 'rgba(0,0,0,0.14)'; ctx.lineWidth = 1;
         for (let z = 6; z < 78; z += 6) { ctx.beginPath(); ctx.moveTo(u0, H - z); ctx.lineTo(u1, H - z); ctx.stroke(); }
-        wallAt(n - 0.9, () => {
-          ctx.font = 'bold 30px "Permanent Marker", "Fredoka", cursive'; ctx.fillStyle = '#d62828';
-          ctx.fillText("CANI'S", 14, -36);
-          ctx.font = 'bold 11px Fredoka, sans-serif'; ctx.fillStyle = '#1b1b1b';
-          ctx.fillText('BARBER SHOP', 30, -20);
-        });
+        // the logo, taped to the roll-up door
+        wallAt(n - 0.9, () => drawLogoBadge(ctx, 20, -76, 60, 0));
       } else {
         for (let wy = 1.2; wy + 1.6 < n - 5; wy += 3) paintWindow(ctx, at(wy + 1.6), at(wy), H, t, st, wy);
-        wallAt(n - 0.6, () => {
-          roundRect(ctx, 10, -H + 8, 150, 38, 6, 'rgba(10,10,20,0.9)');
-          const off = utilityOff('power');
-          if (!off) { ctx.shadowColor = st.trim; ctx.shadowBlur = 10 + Math.sin(t * 3) * 3; }
-          ctx.font = 'bold 26px Fredoka, sans-serif';
-          ctx.fillStyle = off ? '#555' : st.trim === '#e63946' ? '#ff5d6c' : st.trim;
-          ctx.fillText('CANI', 22, -H + 37);
-          ctx.shadowBlur = 0;
-          ctx.font = 'bold 10px Fredoka, sans-serif'; ctx.fillStyle = off ? '#888' : '#fff';
-          ctx.fillText('BARBER CO.', 92, -H + 33);
-        });
+        // lit logo sign
+        wallAt(n - 0.6, () => drawLogoBadge(ctx, 16, -H + 6, 66, utilityOff('power') ? 0 : 12 + Math.sin(t * 3) * 3));
         for (let wy = 2.8; wy + 0.2 < n - 5; wy += 3) wallAt(wy + 1.4, () => paintSconce(ctx));
       }
     } else {

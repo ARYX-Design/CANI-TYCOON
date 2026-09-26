@@ -41,6 +41,8 @@ if (!/^\d{4,}$/.test(STAFF_PIN)) {
 }
 
 const REWARDS = JSON.parse(fs.readFileSync(path.join(__dirname, 'rewards.json'), 'utf8'));
+// one-time coin bonuses for following on Instagram (Instagram can't tell us who follows, so this is on trust)
+const SOCIAL = JSON.parse(fs.readFileSync(path.join(__dirname, 'social.json'), 'utf8'));
 
 // ---------- tiny JSON database ----------
 
@@ -190,14 +192,14 @@ function issueToken(p) {
 function playerState(p) {
   const earnedToday = p.earnDay === today() ? p.earnedToday : 0;
   const coupons = Object.values(db.coupons).filter(c => c.playerId === p.id).sort((a, b) => b.createdAt - a.createdAt).map(couponView);
-  return { id: p.id, balance: p.balance, earnedToday, cap: DAILY_CAP, coupons, signedIn: !!p.contact, contact: p.contact ? mask(p.contact) : '' };
+  return { id: p.id, balance: p.balance, earnedToday, cap: DAILY_CAP, coupons, signedIn: !!p.contact, contact: p.contact ? mask(p.contact) : '', bonuses: Object.keys(p.bonuses || {}) };
 }
 
 // ---------- API ----------
 
 const api = {
   'GET /api/health': () => ({ ok: true, rewards: REWARDS.length }),
-  'GET /api/rewards': () => ({ rewards: REWARDS, cap: DAILY_CAP, signIn: { email: !!MAIL || AUTH_DEV, phone: !!SMS || AUTH_DEV } }),
+  'GET /api/rewards': () => ({ rewards: REWARDS, social: SOCIAL, cap: DAILY_CAP, signIn: { email: !!MAIL || AUTH_DEV, phone: !!SMS || AUTH_DEV } }),
 
   'POST /api/players': (req) => {
     if (limited('reg:' + ip(req), 5, 3600e3)) throw { code: 429, error: 'Too many new players from this network. Try again later.' };
@@ -258,6 +260,7 @@ const api = {
     } else if (account !== p && !p.contact) {
       // coins earned on this device before signing in are added, within the account's daily cap
       if (account.earnDay !== today()) { account.earnDay = today(); account.earnedToday = 0; }
+      account.bonuses = { ...(p.bonuses || {}), ...(account.bonuses || {}) };
       merged = Math.max(0, Math.min(p.balance, DAILY_CAP - account.earnedToday));
       account.balance += merged;
       account.earnedToday += merged;
@@ -276,6 +279,18 @@ const api = {
     byToken.delete(h);
     save();
     return { ok: true };
+  },
+
+  // "I followed on Instagram": once per player/account, on top of the daily cap
+  'POST /api/bonus': (req, p, body) => {
+    const s = SOCIAL.find(x => x.id === body.id);
+    if (!s) throw { code: 404, error: 'Unknown bonus' };
+    p.bonuses = p.bonuses || {};
+    if (p.bonuses[s.id]) throw { code: 409, error: 'You already got this bonus' };
+    p.bonuses[s.id] = Date.now();
+    p.balance += s.coins;
+    save();
+    return { added: s.coins, ...playerState(p) };
   },
 
   'POST /api/redeem': (req, p, body) => {
@@ -329,7 +344,7 @@ const api = {
   },
 };
 
-const PLAYER_ROUTES = new Set(['GET /api/me', 'POST /api/earn', 'POST /api/redeem', 'POST /api/auth/start', 'POST /api/auth/verify', 'POST /api/auth/logout']);
+const PLAYER_ROUTES = new Set(['GET /api/me', 'POST /api/earn', 'POST /api/redeem', 'POST /api/bonus', 'POST /api/auth/start', 'POST /api/auth/verify', 'POST /api/auth/logout']);
 const STAFF_ROUTES = new Set(['POST /api/staff/lookup', 'POST /api/staff/use', 'GET /api/staff/recent']);
 
 async function handleApi(req, res, route) {

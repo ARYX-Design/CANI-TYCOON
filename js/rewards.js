@@ -141,6 +141,7 @@ function rewardsPanel() {
   const offline = online ? '' : `<div class="panel-note offline-note">🔌 Coins become real coupons in the official CANI game at the barbershop's website. This preview isn't connected to the shop's rewards server, so exchanging is switched off here.</div>`;
   return `<div class="coin-balance"><span class="coin-big">⭐</span><div><b>${s.coins}</b><span>Cani Coins</span></div></div>
     ${account}${today}${offline}
+    ${socialCardsHTML()}
     <h3>Real rewards at CANI Barbershop</h3>
     <div class="panel-note">Exchange coins for coupons you use in the real shop: show the QR code at the counter.</div>
     ${rewards}
