@@ -437,9 +437,11 @@ const Renderer = {
       if (customerNeedsSeat(c) && !autoSeated && c !== Game.selected) {
         const p = isoK(c.x, c.y, (c.sitting ? 17 : 14) + 70 + bounce);
         tapBadge(ctx, '👆', p.x, p.y, '#50dc78');
-      } else if (c.state === 'done' && !hasHelper('cashier') && !hasHelper('barberPay')) {
-        const p = isoK(c.x, c.y, 17 + 66 + bounce);
-        tapBadge(ctx, '💵', p.x, p.y, c.payWait > 50 ? '#e63946' : '#f1c453');
+      } else if (c.state === 'done' || c.state === 'toPay' || c.state === 'atRegister') {
+        // 💵 over everyone who still has to pay, with a bar that runs out before they walk out
+        const p = isoK(c.x, c.y, (c.sitting ? 17 : 14) + 66 + bounce);
+        const left = payPatience(c);
+        tapBadge(ctx, '💵', p.x, p.y, left < 0.35 ? '#e63946' : '#f1c453', c.state === 'toPay' ? null : left);
       }
     }
     for (const r of registers()) {
@@ -627,12 +629,17 @@ const Renderer = {
   },
 };
 
-function tapBadge(ctx, text, x, y, ring) {
+function tapBadge(ctx, text, x, y, ring, fill) {
   ctx.save();
   ctx.font = '13px sans-serif'; ctx.textAlign = 'center';
   const w = Math.max(24, ctx.measureText(text).width + 12);
   roundRect(ctx, x - w / 2, y - 13, w, 22, 11, 'rgba(15,16,30,0.85)');
   ctx.strokeStyle = ring; ctx.lineWidth = 2; ctx.stroke();
+  if (fill !== undefined && fill !== null) {
+    // time left before they give up
+    roundRect(ctx, x - 13, y - 21, 26, 5, 2.5, 'rgba(0,0,0,0.6)');
+    roundRect(ctx, x - 12, y - 20, 24 * fill, 3, 1.5, fill > 0.5 ? '#52b788' : fill > 0.25 ? '#f4a261' : '#e63946');
+  }
   ctx.beginPath(); ctx.moveTo(x - 4, y + 9); ctx.lineTo(x, y + 14); ctx.lineTo(x + 4, y + 9); ctx.fillStyle = 'rgba(15,16,30,0.85)'; ctx.fill();
   ctx.fillStyle = '#fff'; ctx.fillText(text, x, y + 3);
   ctx.restore();

@@ -77,8 +77,8 @@ function inspectState(a) {
     case 'waiting': return { text: 'Waiting for a barber', bar: clamp(a.patience / a.maxPatience, 0, 1), patience: true };
     case 'toStation': return { text: 'Walking to the chair', bar: null };
     case 'atStation': return a.inService ? { text: `Getting a ${a.service.name} – tap to help!`, bar: clamp(a.progress, 0, 1) } : { text: a.cutBy ? 'Barber is on the way' : 'Waiting for a free barber', bar: null };
-    case 'done': return { text: registers().length ? 'Finished! Send them to the register' : 'Finished! Take their payment', bar: null };
-    case 'atRegister': return { text: 'Waiting at the register – ring them up!', bar: null };
+    case 'done': return { text: registers().length ? 'Finished! Send them to the register before they walk out' : 'Finished! Take their payment before they walk out', bar: payPatience(a), patience: true };
+    case 'atRegister': return { text: 'Waiting at the register – ring them up before they walk out!', bar: payPatience(a), patience: true };
     case 'toPay': case 'paying': return { text: 'Paying at the register', bar: null };
     default: return { text: a.mood === 'angry' ? 'Leaving angry' : a.mood === 'sad' ? 'Leaving – no room' : 'Heading home, fresh cut', bar: null };
   }
@@ -521,7 +521,8 @@ function showDaySummary(sm) {
   const net = sm.revenue + sm.tips - sm.wages - sm.lateFees;
   const repD = sm.repEnd - sm.repStart;
   let tip = '';
-  if (Game.state.bills.some(b => Game.state.day > b.due)) tip = '⚠️ You have overdue bills! Open the <b>Bills</b> tab and pay them before the power or water gets cut.';
+  if (sm.walkouts >= 2) tip = `💸 ${sm.walkouts} customers left without paying. Tap customers with 💵 before their bar runs out, or learn <b>Barbers Take Payment</b> in Upgrades.`;
+  else if (Game.state.bills.some(b => Game.state.day > b.due)) tip = '⚠️ You have overdue bills! Open the <b>Bills</b> tab and pay them before the power or water gets cut.';
   else if (sm.lost > sm.served * 0.3 && sm.lost > 2) {
     tip = Game.state.barbers.length < stage().maxBarbers
       ? '💡 Many customers left. Seat them faster, hire another barber and add chairs and waiting seats.'
@@ -542,6 +543,7 @@ function showDaySummary(sm) {
       <div><span>Late fees</span><b class="${sm.lateFees ? 'neg' : ''}">-${fmt(sm.lateFees)}</b></div>
       <div class="total"><span>Profit</span><b class="${net < 0 ? 'neg' : 'pos'}">${fmt(net)}</b></div>
       <div><span>Served / lost</span><b>${sm.served} / ${sm.lost}</b></div>
+      ${sm.walkouts ? `<div><span>Left without paying</span><b class="neg">${sm.walkouts} · −${fmt(sm.unpaidCuts || 0)}</b></div>` : ''}
       <div><span>Reputation</span><b>${sm.repEnd.toFixed(2)} ${repD >= 0 ? '▲' : '▼'}${Math.abs(repD).toFixed(2)}</b></div>
       <div><span>Cash · unpaid bills</span><b>${fmt(sm.money)} · <span class="${sm.unpaid ? 'neg' : ''}">${fmt(sm.unpaid)}</span></b></div>
     </div>${bills}${tomorrow}${tip ? `<p class="tip">${tip}</p>` : ''}`,

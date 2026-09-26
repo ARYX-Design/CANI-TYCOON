@@ -22,7 +22,8 @@ You can also serve the folder, for example with `npx serve .`.
   A free barber walks over on their own.
 - ✂️ **Speed up cuts:** tap a customer (or their barber) during the cut.
 - 💵 **Take payment:** when a cut is done, tap the customer, then tap the register. Tap the register again to ring them up.
-  Fast checkout earns a bigger tip. Customers left waiting too long leave without tipping.
+  Fast checkout earns a bigger tip. Everyone who still has to pay shows a 💵 icon with a timer bar; if it runs out they
+  **walk out without paying** (lost money and reputation).
 - 🧹 **Sweep:** tap hair on the floor. A dirty floor makes customers unhappy.
 - 🧾 **Pay bills:** rent and supplies arrive every day, electricity and water every 3 days, internet every 5 and taxes every 7.
   Late bills add a 10% fee each night and cost reputation. Unpaid electricity causes a power cut (dark shop, slower cuts, TVs off);

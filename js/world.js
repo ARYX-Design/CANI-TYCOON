@@ -59,7 +59,7 @@ function newState() {
 }
 
 function freshToday(rep) {
-  return { revenue: 0, tips: 0, served: 0, lost: 0, repStart: rep };
+  return { revenue: 0, tips: 0, served: 0, lost: 0, walkouts: 0, unpaidCuts: 0, repStart: rep };
 }
 
 function initWorld(state) {
@@ -982,7 +982,7 @@ function updateCustomer(c, dt, dtMin) {
           ? `💵 ${c.name} is done! Tap them, then tap the register.`
           : `💵 ${c.name} is done! Tap them to take the money.`);
       }
-      if (c.state === 'done' && c.payWait > 90) leaveWithoutTip(c);
+      if (c.state === 'done' && c.payWait > PAY_WAIT.done) walkOut(c);
       break;
     case 'toPay':
       if (moveAgent(c, dt)) { c.state = 'atRegister'; c.regWait = 0; c.arrivedAt = Game.t; c.dir = 1; }
@@ -992,7 +992,7 @@ function updateCustomer(c, dt, dtMin) {
       if (hasHelper('cashier') && c.regWait > 6) {
         const first = Game.customers.filter(o => o.state === 'atRegister' && o.register === c.register).sort((a, b) => a.arrivedAt - b.arrivedAt)[0];
         if (first === c) { pay(c, 1); sendHome(c); }
-      } else if (c.regWait > 70) leaveWithoutTip(c);
+      } else if (c.regWait > PAY_WAIT.register) walkOut(c);
       break;
     case 'leaving': {
       const last = c.path[c.path.length - 1];
@@ -1005,6 +1005,32 @@ function updateCustomer(c, dt, dtMin) {
       break;
     }
   }
+}
+
+// How long (game minutes) a finished customer waits to pay before walking out without paying
+const PAY_WAIT = { done: 60, register: 45 };
+
+// how much patience is left for paying, 0..1 (for the 💵 badge and the inspector)
+function payPatience(c) {
+  if (c.state === 'done') return clamp(1 - c.payWait / PAY_WAIT.done, 0, 1);
+  if (c.state === 'atRegister') return clamp(1 - c.regWait / PAY_WAIT.register, 0, 1);
+  return 1;
+}
+
+// Waited too long to pay: leaves without paying anything
+function walkOut(c) {
+  const s = Game.state;
+  releaseStation(c);
+  sendHome(c);
+  c.mood = 'angry';
+  s.rep = clamp(s.rep - 0.04, 0, 5);
+  s.today.walkouts = (s.today.walkouts || 0) + 1;
+  s.today.unpaidCuts = (s.today.unpaidCuts || 0) + c.bill.price;
+  say(c, 'angry');
+  sfx('angry');
+  const p = iso(c.x, c.y, 70);
+  addFloater(p.x, p.y, `💸 Left without paying! −$${c.bill.price}`, '#ff6b6b', 2.2);
+  hint('walkout', '💸 Nobody took their money, so they left without paying. Tap customers with 💵 quickly, or learn Barbers Take Payment.');
 }
 
 function leaveWithoutTip(c) {
