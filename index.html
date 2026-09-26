@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#1d2340">
+  <title>CANI Barber Tycoon</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Permanent+Marker&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <header id="topbar">
+    <div class="brand">CANI<span>Barber Tycoon</span></div>
+    <div class="hud">
+      <div class="chip money" id="hudMoney">$0</div>
+      <div class="chip" id="hudRep"></div>
+      <div class="chip" id="hudDay">Day 1</div>
+      <div class="chip stage" id="hudStage">Garage</div>
+      <div class="chip dim" id="hudQueue"></div>
+    </div>
+    <div class="right">
+      <div id="speedBtns">
+        <button data-speed="0" title="Pause (Space)">⏸</button>
+        <button data-speed="1" title="Normal speed (1)">▶</button>
+        <button data-speed="2" title="Fast (2)">⏩</button>
+        <button data-speed="3" title="Fastest (3)">⏭</button>
+      </div>
+      <button id="menuBtn" title="Menu">⚙️</button>
+    </div>
+  </header>
+
+  <div id="buildHint" class="hidden"></div>
+  <div id="toasts"></div>
+
+  <section id="panel" class="hidden">
+    <div class="panel-head">
+      <h2 id="panelTitle"></h2>
+      <button id="panelClose" aria-label="Close">✕</button>
+    </div>
+    <div id="panelBody"></div>
+  </section>
+
+  <nav id="toolbar">
+    <button data-panel="build"><span>🛠️</span>Build</button>
+    <button data-panel="staff"><span>💇</span>Staff</button>
+    <button data-panel="services"><span>✂️</span>Services</button>
+    <button data-panel="upgrades"><span>⚡</span>Upgrades</button>
+    <button data-panel="expand" id="btnExpand"><span>🏙️</span>Expand</button>
+  </nav>
+
+  <div id="modal" class="hidden"><div class="modal-card" id="modalCard"></div></div>
+
+  <script src="js/data.js"></script>
+  <script src="js/iso.js"></script>
+  <script src="js/sprites.js"></script>
+  <script src="js/world.js"></script>
+  <script src="js/render.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
