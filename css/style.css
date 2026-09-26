@@ -22,7 +22,9 @@ html, body {
   user-select: none; -webkit-user-select: none;
 }
 
-canvas#game { position: fixed; inset: 0; display: block; touch-action: none; cursor: grab; }
+canvas#game { position: fixed; inset: 0; display: block; touch-action: none; cursor: grab; z-index: 1; }
+canvas#game3d { position: fixed; inset: 0; display: block; pointer-events: none; z-index: 0; }
+body.view3d { background: radial-gradient(ellipse at 50% 40%, #2c3358 0%, #1d2340 55%, #2e2442 100%); }
 canvas#game:active { cursor: grabbing; }
 
 button { font-family: inherit; color: inherit; cursor: pointer; border: 0; background: none; }

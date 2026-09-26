@@ -1,6 +1,8 @@
 # CANI Barber Tycoon 💈
 
-An isometric barbershop tycoon game (in the spirit of burger-shop tycoon games) that runs in the browser.
+A 3D isometric barbershop tycoon game (in the spirit of burger-shop tycoon games) that runs in the browser.
+The shop is rendered in real-time 3D with Three.js (lighting, shadows, lamps that glow in the evening).
+A classic 2D view is available in the ⚙️ menu and is used automatically when WebGL isn't available.
 You start as **Cani**, cutting hair alone in your parents' garage, and grow the business into the **Cani Empire HQ**.
 
 ## Play
@@ -64,6 +66,8 @@ Each day runs from 09:00 to 19:00. Wages are paid at closing time; everything el
 | `js/world.js` | Simulation: pathfinding, customers, barbers, tap actions, bills, economy, day cycle, save/load |
 | `js/rewards.js` | Cani Coins, daily goals, coupon shop and the Rewards panel |
 | `js/audio.js` | Procedural background music and sound effects (Web Audio) |
-| `js/render.js` | Scene rendering (floor, walls, depth-sorted entities, overlays) |
+| `js/render3d.js` | 3D renderer (Three.js): room, furniture and character models, lighting, highlights |
+| `js/render.js` | Classic 2D renderer and the overlay shared by both views (labels, bubbles, effects) |
+| `js/vendor/three.min.js` | Three.js r128 (MIT), bundled so the game also works offline |
 | `js/ui.js` | HUD, panels, modals, toasts and sound effects |
 | `js/main.js` | Boot, main loop and input handling |

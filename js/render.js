@@ -45,12 +45,27 @@ const Renderer = {
   draw() {
     const ctx = this.ctx, s = Game.state, t = Game.t;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    this.drawBackground(ctx);
+    const is3d = R3.active;
+    // in 3D mode the scene is drawn by WebGL underneath; this canvas only carries the overlay
+    if (is3d) { ctx.clearRect(0, 0, this.w, this.h); renderR3(); } else this.drawBackground(ctx);
     ctx.save();
     ctx.translate(this.w / 2 + this.cam.x, this.h / 2 + this.cam.y);
     ctx.scale(this.cam.zoom, this.cam.zoom);
 
     const st = stage(), n = st.size;
+    if (!is3d) this.drawScene2D(ctx, s, st, n, t);
+    else this.targetArrows = this.targetList();
+    for (const p of Game.particles) { ctx.fillStyle = p.color; ctx.globalAlpha = Math.min(1, p.life); ctx.fillRect(p.x, p.y, 2, 1.5); }
+    ctx.globalAlpha = 1;
+    if (!is3d) this.drawDrops(ctx, t);
+    this.drawSparkles(ctx);
+    this.drawOverlays(ctx, t);
+    ctx.restore();
+    if (!is3d) this.drawDaylight(ctx);
+    this.drawCoins(ctx);
+  },
+
+  drawScene2D(ctx, s, st, n, t) {
     // floating diorama slab
     box(ctx, -0.25, -0.25, n + 0.25, n + 0.25, -22, 22, '#3d405b', { top: '#3d405b', left: '#2e3148', right: '#23263a' });
     this.drawPlaque(ctx, st, n);
@@ -71,14 +86,6 @@ const Renderer = {
 
     this.drawLights(ctx, st, n, t);
     this.drawGhost(ctx, t);
-    for (const p of Game.particles) { ctx.fillStyle = p.color; ctx.globalAlpha = Math.min(1, p.life); ctx.fillRect(p.x, p.y, 2, 1.5); }
-    ctx.globalAlpha = 1;
-    this.drawDrops(ctx, t);
-    this.drawSparkles(ctx);
-    this.drawOverlays(ctx, t);
-    ctx.restore();
-    this.drawDaylight(ctx);
-    this.drawCoins(ctx);
   },
 
   drawBackground(ctx) {
@@ -572,12 +579,16 @@ const Renderer = {
   },
 
   // highlight where the selected customer can go
-  drawTargets(ctx, t) {
+  targetList() {
     const sel = Game.selected;
-    if (!sel || sel.barber) return;
-    let targets = [];
-    if (sel.state === 'waiting' || sel.state === 'enter') targets = freeStation(sel.service.station);
-    else if (sel.state === 'done') targets = registers();
+    if (!sel || sel.barber) return [];
+    if (sel.state === 'waiting' || sel.state === 'enter') return freeStation(sel.service.station);
+    if (sel.state === 'done') return registers();
+    return [];
+  },
+
+  drawTargets(ctx, t) {
+    const targets = this.targetList();
     const pulse = 0.35 + Math.sin(t * 6) * 0.15;
     for (const it of targets) {
       tileDiamond(ctx, it.x, it.y, `rgba(80,220,120,${pulse})`, '#50dc78');

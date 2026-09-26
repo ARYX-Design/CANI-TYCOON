@@ -339,6 +339,7 @@ function menuPanel() {
       <div><span>Days in business</span><b>${s.day}</b></div>
     </div>
     <div class="menu-btns">
+      ${R3.ok ? `<button class="btn" data-action="toggleView">${R3.active ? '🧊 View: 3D' : '🖼️ View: classic 2D'}</button>` : ''}
       <button class="btn" data-action="toggleMusic">${Sound.musicOn ? '🎵 Music on' : '🔇 Music off'}</button>
       <button class="btn" data-action="toggleSound">${Sound.sfxOn ? '🔊 Sound effects on' : '🔈 Sound effects off'}</button>
       <button class="btn" data-action="toggleNames">${UI.showNames ? '🏷️ Names on' : '🏷️ Names off'}</button>
@@ -363,6 +364,7 @@ function handlePanelClick(e) {
     case 'price': Game.state.priceLevel = +el.dataset.idx; break;
     case 'expand': r = expandShop(); if (r.ok) { closePanel(); Renderer.fitCamera(); } break;
     case 'toggleSound': unlockAudio(); setSfx(!Sound.sfxOn); break;
+    case 'toggleView': setView3D(!R3.active); break;
     case 'toggleMusic': unlockAudio(); setMusic(!Sound.musicOn); break;
     case 'payBill': r = payBill(+el.dataset.id); if (r.ok) toast('🧾 Bill paid'); break;
     case 'payBillHalf': r = payBill(+el.dataset.id, true); if (r.ok) toast('🎟️ Bill paid at half price!'); break;

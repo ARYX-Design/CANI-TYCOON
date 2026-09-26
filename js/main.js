@@ -3,6 +3,7 @@
 (function () {
   const canvas = $('#game');
   Renderer.init(canvas);
+  initR3();
 
   const saved = loadGame();
   initWorld(saved || newState());
