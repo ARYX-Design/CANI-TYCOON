@@ -53,6 +53,11 @@ You can also serve the folder, for example with `npx serve .`.
 
 Each day runs from 09:00 to 19:00. Wages are paid at closing time; everything else comes as bills. The game autosaves to `localStorage`.
 
+**The street:** in 3D the shop sits on an old-town pedestrian street modelled on Prešernova ulica in Kranj —
+stone paving, pastel houses with red tiled roofs, a hotel with red banners and flags, café umbrellas, planters and
+black lanterns that light up in the evening. Pedestrians and cyclists pass by (busiest around lunchtime), and
+customers walk along the street to the door and leave the same way.
+
 **Controls:** drag to pan, scroll or pinch to zoom, ⟲ ⟳ buttons or `Q` / `E` to rotate the 3D view in 90° steps
 (the walls facing the camera drop to low stubs), tap or click to place. `Space` pauses, `1`–`3` set the speed,
 `B` opens Build, `Esc` cancels. Right-click also cancels the build tool.
@@ -145,6 +150,7 @@ phone or tablet. Scanning a coupon's QR code with the phone camera opens the cou
 | `js/vendor/qrcode.js` | QR code generator (MIT) |
 | `js/audio.js` | Procedural background music and sound effects (Web Audio) |
 | `js/render3d.js` | 3D renderer (Three.js): room, furniture and character models, lighting, highlights |
+| `js/street3d.js` | The street outside: paving, houses, street furniture, pedestrian and cyclist traffic |
 | `js/render.js` | Classic 2D renderer and the overlay shared by both views (labels, bubbles, effects) |
 | `js/vendor/three.min.js` | Three.js r128 (MIT), bundled so the game also works offline |
 | `js/ui.js` | HUD, panels, modals, toasts and sound effects |

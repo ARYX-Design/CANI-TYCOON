@@ -409,6 +409,27 @@ function weightedService(female) {
   return list[list.length - 1];
 }
 
+// ---------- the street outside (3D view) ----------
+// Customers walk in along the street to the door and leave the same way.
+const useStreet = () => typeof R3 !== 'undefined' && R3.active;
+function streetGeom() {
+  const n = gridSize();
+  return { ex: n + STREET.east, nz: STREET.north, south: n + STREET.south, west: STREET.west };
+}
+function arrivalRoute() {
+  const g = streetGeom(), d = doorTile();
+  const door = [{ px: d.x + 0.5, py: g.nz + rand(-0.3, 0.3) }, { px: d.x + 0.5, py: -0.3 }];
+  return Math.random() < 0.5
+    ? { start: [g.ex + rand(-0.4, 0.4), g.south], pts: [{ px: g.ex, py: g.nz }, ...door] }
+    : { start: [g.west, g.nz + rand(-0.4, 0.4)], pts: door };
+}
+function departureRoute() {
+  const g = streetGeom(), d = doorTile();
+  return Math.random() < 0.5
+    ? [{ px: d.x + 0.5, py: g.nz }, { px: g.west, py: g.nz + rand(-0.4, 0.4) }]
+    : [{ px: d.x + 0.5, py: g.nz }, { px: g.ex, py: g.nz }, { px: g.ex + rand(-0.4, 0.4), py: g.south }];
+}
+
 function spawnCustomer() {
   const person = randomPerson();
   const service = weightedService(person.female);
@@ -425,12 +446,20 @@ function spawnCustomer() {
   };
   Game.customers.push(c);
   if (Math.random() < 0.55) say(c, 'greet', 0.4);
+  // in the 3D view they first walk along the street to the door
+  let pre = [];
+  if (useStreet()) {
+    const r = arrivalRoute();
+    [c.x, c.y] = r.start;
+    c.outside = true;
+    pre = r.pts;
+  }
 
   const seat = Game.state.items.find(i => ITEMS[i.type].seat && !i.occupant && findPath(d.x, d.y, i.x, i.y));
   if (seat) {
     seat.occupant = c.id;
     c.seat = seat;
-    c.path = [{ x: d.x, y: d.y }, ...findPath(d.x, d.y, seat.x, seat.y)];
+    c.path = [...pre, { x: d.x, y: d.y }, ...findPath(d.x, d.y, seat.x, seat.y)];
     return;
   }
   // no seat: wait standing near the door (max 2), or walk out disappointed
@@ -441,11 +470,11 @@ function spawnCustomer() {
   const spotPath = spot && findPath(d.x, d.y, spot.x, spot.y);
   if (spotPath) {
     c.standing = true;
-    c.path = [{ x: d.x, y: d.y }, ...spotPath];
+    c.path = [...pre, { x: d.x, y: d.y }, ...spotPath];
   } else {
     c.state = 'leaving';
     c.mood = 'sad';
-    c.path = [{ x: d.x, y: d.y }, { px: d.x + 0.5, py: -0.3 }];
+    c.path = pre.length ? [...pre, ...departureRoute()] : [{ x: d.x, y: d.y }, { px: d.x + 0.5, py: -0.3 }];
     c.lost = true;
     say(c, 'full');
     loseCustomer(c, 0.015, '😞 Full!');
@@ -470,7 +499,7 @@ function moveAgent(a, dt) {
   const ty = n.py !== undefined ? n.py : n.y + 0.5;
   const dx = tx - a.x, dy = ty - a.y;
   const dist = Math.hypot(dx, dy);
-  const step = a.speed * dt;
+  const step = a.speed * dt * (a.x >= gridSize() || a.y < 0 ? 1.4 : 1);
   const sdx = dx - dy;
   if (Math.abs(sdx) > 0.01) a.dir = sdx > 0 ? 1 : -1;
   a.moving = true;
@@ -490,7 +519,7 @@ function sendHome(c) {
   const d = doorTile();
   const t = tileOf(c);
   const p = findPath(t.x, t.y, d.x, d.y) || [];
-  c.path = [...p, { px: d.x + 0.5, py: -0.3 }];
+  c.path = [...p, { px: d.x + 0.5, py: -0.3 }, ...(useStreet() ? departureRoute() : [])];
   c.state = 'leaving';
   c.sitting = false;
   c.cape = false;
@@ -590,6 +619,7 @@ function standSpot(st, barber) {
 // Send a waiting customer to a specific station. The next free barber follows on their own.
 function seatAt(c, st) {
   if (!(c.state === 'waiting' || c.state === 'enter')) return { ok: false, reason: `${c.name} is busy` };
+  if (c.outside) return { ok: false, reason: `${c.name} is still walking in` };
   if (ITEMS[st.type].station !== c.service.station) {
     const need = { chair: 'a barber chair', sink: 'a Wash Sink', color: 'a Color Station' }[c.service.station];
     return { ok: false, reason: `${c.name} wants a ${c.service.name} – that needs ${need}` };
@@ -634,7 +664,7 @@ function assignBarbers() {
 
 // Receptionist helper: seat waiting customers automatically
 function autoSeat() {
-  const waiting = Game.customers.filter(c => c.state === 'waiting' || (c.state === 'enter' && c.alpha >= 1));
+  const waiting = Game.customers.filter(c => !c.outside && (c.state === 'waiting' || (c.state === 'enter' && c.alpha >= 1)));
   waiting.sort((a, b) => a.patience / a.maxPatience - b.patience / b.maxPatience);
   for (const c of waiting) {
     const st = nearestFreeStation(c);
@@ -650,14 +680,14 @@ function nearestFreeStation(c) {
 }
 
 function customerNeedsSeat(c) {
-  return (c.state === 'waiting' || (c.state === 'enter' && c.alpha >= 1)) && freeStation(c.service.station).length > 0;
+  return !c.outside && (c.state === 'waiting' || (c.state === 'enter' && c.alpha >= 1)) && freeStation(c.service.station).length > 0;
 }
 
 // Tapping a free station calls the waiting customer who has waited longest for it
 function callNextTo(st) {
   const type = ITEMS[st.type].station;
   const waiting = Game.customers
-    .filter(c => (c.state === 'waiting' || c.state === 'enter') && c.service.station === type)
+    .filter(c => !c.outside && (c.state === 'waiting' || c.state === 'enter') && c.service.station === type)
     .sort((a, b) => a.patience / a.maxPatience - b.patience / b.maxPatience);
   if (!waiting.length) return { ok: false, reason: 'Nobody is waiting for this station' };
   return seatAt(waiting[0], st);
@@ -830,7 +860,8 @@ function updateCustomer(c, dt, dtMin) {
   switch (c.state) {
     case 'enter':
       c.alpha = Math.min(1, c.alpha + dt * 3);
-      patienceTick(c, dtMin * 0.5);
+      if (c.outside) { if (c.y >= 0) c.outside = false; }
+      else patienceTick(c, dtMin * 0.5);
       if (moveAgent(c, dt)) { c.state = 'waiting'; c.sitting = !!c.seat; c.dir = 1; }
       break;
     case 'waiting':
@@ -882,13 +913,16 @@ function updateCustomer(c, dt, dtMin) {
         if (first === c) { pay(c, 1); sendHome(c); }
       } else if (c.regWait > 70) leaveWithoutTip(c);
       break;
-    case 'leaving':
-      if (c.path.length <= 1) c.alpha = Math.max(0, c.alpha - dt * 2.5);
+    case 'leaving': {
+      const last = c.path[c.path.length - 1];
+      const lx = last ? (last.px !== undefined ? last.px : last.x + 0.5) : c.x, ly = last ? (last.py !== undefined ? last.py : last.y + 0.5) : c.y;
+      if (c.path.length <= 1 && Math.hypot(lx - c.x, ly - c.y) < 1) c.alpha = Math.max(0, c.alpha - dt * 2.5);
       if (moveAgent(c, dt) || c.alpha <= 0) {
         Game.customers = Game.customers.filter(o => o !== c);
         if (Game.selected === c) Game.selected = null;
       }
       break;
+    }
   }
 }
 

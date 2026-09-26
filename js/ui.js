@@ -70,7 +70,9 @@ function inspectState(a) {
     return { text: `Walking to a chair for ${a.job.customer.name}`, bar: null };
   }
   switch (a.state) {
-    case 'enter': case 'waiting': return { text: 'Waiting for a barber', bar: clamp(a.patience / a.maxPatience, 0, 1), patience: true };
+    case 'enter': if (a.outside) return { text: 'Walking down the street to the shop', bar: null };
+    // falls through
+    case 'waiting': return { text: 'Waiting for a barber', bar: clamp(a.patience / a.maxPatience, 0, 1), patience: true };
     case 'toStation': return { text: 'Walking to the chair', bar: null };
     case 'atStation': return a.inService ? { text: `Getting a ${a.service.name} – tap to help!`, bar: clamp(a.progress, 0, 1) } : { text: a.cutBy ? 'Barber is on the way' : 'Waiting for a free barber', bar: null };
     case 'done': return { text: registers().length ? 'Finished! Send them to the register' : 'Finished! Take their payment', bar: null };
@@ -365,7 +367,7 @@ function handlePanelClick(e) {
     case 'price': Game.state.priceLevel = +el.dataset.idx; break;
     case 'expand': r = expandShop(); if (r.ok) { closePanel(); Renderer.fitCamera(); } break;
     case 'toggleSound': unlockAudio(); setSfx(!Sound.sfxOn); break;
-    case 'toggleView': setView3D(!R3.active); break;
+    case 'toggleView': setView3D(!R3.active); Renderer.fitCamera(); break;
     case 'toggleMusic': unlockAudio(); setMusic(!Sound.musicOn); break;
     case 'payBill': r = payBill(+el.dataset.id); if (r.ok) toast('🧾 Bill paid'); break;
     case 'payBillHalf': r = payBill(+el.dataset.id, true); if (r.ok) toast('🎟️ Bill paid at half price!'); break;

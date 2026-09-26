@@ -166,11 +166,12 @@ function buildRoom() {
   const g = R3.room = new THREE.Group();
   R3.world.add(g);
 
-  // floating slab
+  // floating slab (hidden when the street is shown; the street has its own, bigger base)
   const slab = mesh(new THREE.BoxGeometry(n + 0.25, 0.56, n + 0.25), [
     mat('#23263a'), mat('#23263a'), mat('#3d405b'), mat('#1a1c2c'), mat('#2e3148'), mat('#2e3148')], false);
   slab.position.set(n / 2 - 0.125, -0.295, n / 2 - 0.125);   // just below the floor to avoid z-fighting
   g.add(slab);
+  R3.slab = slab;
   // name plaque on the front
   const plaqueTex = canvasTex(512, 64, (ctx, w, h) => {
     ctx.fillStyle = '#15172a'; ctx.fillRect(0, 0, w, h);
@@ -181,6 +182,8 @@ function buildRoom() {
   const plaque = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 0.4), new THREE.MeshBasicMaterial({ map: plaqueTex }));
   plaque.position.set(n / 2, -0.28, n + 0.002);
   g.add(plaque);
+  R3.plaque = plaque;
+  buildStreet(g, n, st);
 
   // floor
   const floorTex = canvasTex(n * 64, n * 64, (ctx) => paintFloor(ctx, st, n));
@@ -906,6 +909,14 @@ function syncPeople(t) {
     alive.add(a.id);
     let g = R3.people.get(a.id);
     if (!g) { g = buildPerson(a); R3.people.set(a.id, g); R3.world.add(g); }
+    posePerson(g, a, t);
+  }
+  for (const [id, g] of R3.people) if (!alive.has(id)) { disposeGroup(g); R3.world.remove(g); R3.people.delete(id); }
+}
+
+// Update one character's mesh from its agent: hair, face, position, facing and limb animation
+function posePerson(g, a, t) {
+  {
     const ud = g.userData;
     const hairKey = `${a.groomed}|${a.hairStyle}|${a.hair}|${a.beard}`;
     if (hairKey !== ud.hairKey) {
@@ -924,7 +935,8 @@ function syncPeople(t) {
     }
     g.visible = (a.alpha === undefined ? 1 : a.alpha) > 0.35;
     let y = 0;
-    if (a.sitting) {
+    if (a.bike) y = a.bike;
+    else if (a.sitting) {
       const it = itemAt(Math.floor(a.x), Math.floor(a.y));
       y = it && SEAT_H[it.type] !== undefined ? SEAT_H[it.type] * U - (HIP - 0.02) * PERSON_SCALE : 0;
     }
@@ -941,7 +953,11 @@ function syncPeople(t) {
 
     // legs
     const swing = walking ? Math.sin(phase) * 0.55 : 0;
-    if (a.sitting) {
+    if (a.bike) {
+      // pedalling
+      const k = (a.walkT || 0) * 7;
+      ud.legs.forEach((l, i) => { const ph = k + i * Math.PI; l.thigh.rotation.x = -1.1 + Math.sin(ph) * 0.45; l.knee.rotation.x = 1.1 + Math.cos(ph) * 0.35; });
+    } else if (a.sitting) {
       ud.legs.forEach(l => { l.thigh.rotation.x = -Math.PI / 2; l.knee.rotation.x = Math.PI / 2 - 0.1; });
     } else {
       ud.legs[0].thigh.rotation.x = swing; ud.legs[1].thigh.rotation.x = -swing;
@@ -954,6 +970,8 @@ function syncPeople(t) {
       R.shoulder.rotation.x = -1.25 + Math.sin(t * 3) * 0.08; R.elbow.rotation.x = -0.5;
       L.shoulder.rotation.x = -0.95; L.elbow.rotation.x = -0.9;
       if (ud.tool) { const o = Math.sin(t * 18) * 0.22; ud.tool.userData.blades[0].rotation.y = 0.05 + Math.abs(o); ud.tool.userData.blades[1].rotation.y = -0.05 - Math.abs(o); }
+    } else if (a.bike) {
+      L.shoulder.rotation.x = R.shoulder.rotation.x = -1.05; L.elbow.rotation.x = R.elbow.rotation.x = -0.2;
     } else if (a.sitting) {
       L.shoulder.rotation.x = R.shoulder.rotation.x = -0.35; L.elbow.rotation.x = R.elbow.rotation.x = -0.9;
     } else {
@@ -973,7 +991,6 @@ function syncPeople(t) {
     const look = a.working ? 0 : Math.sin(t * 0.7 + a.id) * 0.012;
     ud.eyes.forEach(e => { e.pupil.position.x = e.s * 0.075 + look; });
   }
-  for (const [id, g] of R3.people) if (!alive.has(id)) { disposeGroup(g); R3.world.remove(g); R3.people.delete(id); }
 }
 
 // ---------- items, piles, coins, highlights ----------
@@ -1161,6 +1178,7 @@ function renderR3() {
   R3.world.position.set(n / 2 - (ca * n / 2 + sa * n / 2), 0, n / 2 - (-sa * n / 2 + ca * n / 2));
   buildRoom();
   updateWalls();
+  updateStreet(t);
   if (t - R3.lastPaint > 0.25 || R3.lastPaint < 0) { paintWalls(t); R3.lastPaint = t; }
   syncItems(t);
   syncPeople(t);

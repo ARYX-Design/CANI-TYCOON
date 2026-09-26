@@ -24,10 +24,12 @@ const Renderer = {
 
   fitCamera() {
     const n = gridSize();
-    const roomW = n * TW + 40, roomH = n * TH + WALL_H + 80;
+    // the 3D view also shows the street around the shop
+    const extra = R3.active ? 3 : 0;
+    const roomW = (n + extra) * TW + 40, roomH = (n + extra) * TH + WALL_H + 80;
     const availH = this.h - 150, availW = this.w - 20;
-    this.cam.zoom = clamp(Math.min(availW / roomW, availH / roomH), 0.45, 1.8);
-    const c = iso(n / 2, n / 2, WALL_H / 3);
+    this.cam.zoom = clamp(Math.min(availW / roomW, availH / roomH), 0.4, 1.8);
+    const c = R3.active ? iso(n / 2 + 0.8, n / 2 - 0.4, WALL_H / 3) : iso(n / 2, n / 2, WALL_H / 3);
     this.cam.x = -c.x * this.cam.zoom;
     this.cam.y = -c.y * this.cam.zoom + 10;
   },
@@ -454,7 +456,7 @@ const Renderer = {
       tapBadge(ctx, `🔔${q.length > 1 ? '×' + q.length : ''}`, p.x, p.y, '#f1c453');
     }
     for (const c of Game.customers) {
-      if ((c.state === 'waiting' || c.state === 'enter') && c.alpha > 0.5) {
+      if ((c.state === 'waiting' || c.state === 'enter') && c.alpha > 0.5 && !c.outside) {
         const p = isoK(c.x, c.y, (c.sitting ? 14 : 0) + 52);
         const f = clamp(c.patience / c.maxPatience, 0, 1);
         roundRect(ctx, p.x - 11, p.y - 3, 22, 5, 2, 'rgba(0,0,0,0.55)');
