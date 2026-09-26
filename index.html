@@ -17,6 +17,7 @@
     <div class="brand">CANI<span>Barber Tycoon</span></div>
     <div class="hud">
       <div class="chip money" id="hudMoney">$0</div>
+      <button class="chip coins" id="hudCoins" title="Cani Coins – open Rewards">⭐ 0</button>
       <div class="chip" id="hudRep"></div>
       <div class="chip" id="hudDay">Day 1</div>
       <div class="chip stage" id="hudStage">Garage</div>
@@ -52,6 +53,7 @@
     <button data-panel="staff"><span>💇</span>Staff</button>
     <button data-panel="services"><span>✂️</span>Services</button>
     <button data-panel="upgrades"><span>⚡</span>Upgrades</button>
+    <button data-panel="rewards" id="btnRewards"><span>🎟️</span>Rewards<i id="rewardBadge" class="badge-count" hidden>0</i></button>
     <button data-panel="expand" id="btnExpand"><span>🏙️</span>Expand</button>
   </nav>
 
@@ -62,6 +64,7 @@
   <script src="js/sprites.js"></script>
   <script src="js/world.js"></script>
   <script src="js/audio.js"></script>
+  <script src="js/rewards.js"></script>
   <script src="js/render.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/main.js"></script>

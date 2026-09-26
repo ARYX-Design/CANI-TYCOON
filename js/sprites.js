@@ -47,8 +47,29 @@ const ItemSprites = {
     leaves.forEach((l, i) => circle(ctx, p.x + l[0] + sway * (i / 6), p.y + l[1], l[2], greens[i % 4]));
   },
 
-  barberPole(ctx, x, y, t) {
-    box(ctx, x + 0.35, y + 0.35, 0.3, 0.3, 0, 6, '#444');
+  goldenPole(ctx, x, y, t) { this.barberPole(ctx, x, y, t, true); },
+
+  neonSign(ctx, x, y, t) {
+    box(ctx, x + 0.3, y + 0.35, 0.4, 0.3, 0, 5, '#2b2d42');
+    const b = iso(x + 0.5, y + 0.5, 5);
+    ctx.fillStyle = '#3d405b'; ctx.fillRect(b.x - 1.5, b.y - 34, 3, 34);
+    const off = typeof utilityOff === 'function' && utilityOff('power');
+    roundRect(ctx, b.x - 22, b.y - 58, 44, 24, 6, '#14101f', '#3d405b');
+    const hue = 320 + Math.sin(t * 1.5) * 25;
+    ctx.save();
+    ctx.font = 'bold 15px Fredoka, sans-serif'; ctx.textAlign = 'center';
+    if (!off) { ctx.shadowColor = `hsl(${hue},100%,60%)`; ctx.shadowBlur = 12; }
+    ctx.fillStyle = off ? '#4a3a4f' : `hsl(${hue},100%,72%)`;
+    ctx.fillText('CANI', b.x, b.y - 40);
+    ctx.restore();
+    if (!off) {
+      ctx.strokeStyle = `hsla(${(hue + 160) % 360},100%,65%,0.9)`; ctx.lineWidth = 1.5;
+      roundRect(ctx, b.x - 19, b.y - 55, 38, 18, 4); ctx.stroke();
+    }
+  },
+
+  barberPole(ctx, x, y, t, gold) {
+    box(ctx, x + 0.35, y + 0.35, 0.3, 0.3, 0, 6, gold ? '#8a6d1c' : '#444');
     const b = iso(x + 0.5, y + 0.5, 6);
     const w = 11, h = 46;
     ctx.save();
@@ -62,13 +83,14 @@ const ItemSprites = {
       ctx.lineTo(b.x + w, yy - 9);
       ctx.lineTo(b.x + w, yy - 5);
       ctx.lineTo(b.x - w, yy + 4);
-      ctx.fillStyle = i % 2 ? '#d62828' : '#1d4e89';
+      ctx.fillStyle = gold ? (i % 2 ? '#f1c453' : '#fff4c2') : i % 2 ? '#d62828' : '#1d4e89';
       ctx.fill();
     }
     ctx.fillStyle = 'rgba(255,255,255,0.35)';
     ctx.fillRect(b.x - w / 2 + 2, b.y - h, 2, h);
     ctx.restore();
-    circle(ctx, b.x, b.y - h - 2, 5, '#c0c0c0');
+    circle(ctx, b.x, b.y - h - 2, 5, gold ? '#f1c453' : '#c0c0c0');
+    if (gold && Math.sin(t * 3) > 0.6) { ctx.fillStyle = '#fff'; ctx.font = '9px serif'; ctx.textAlign = 'center'; ctx.fillText('✦', b.x + 8, b.y - h + 6); }
     circle(ctx, b.x - 1.5, b.y - h - 3.5, 1.5, '#fff');
   },
 

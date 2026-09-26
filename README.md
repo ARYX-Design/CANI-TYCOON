@@ -21,6 +21,10 @@ You can also serve the folder, for example with `npx serve .`.
 - 🧾 **Pay bills:** rent and supplies arrive every day, electricity and water every 3 days, internet every 5 and taxes every 7.
   Late bills add a 10% fee each night and cost reputation. Unpaid electricity causes a power cut (dark shop, slower cuts, TVs off);
   unpaid water stops sinks and color stations.
+- ⭐ **Cani Coins & coupons:** earn coins from 3 daily goals (tap Claim), by tapping the purple coins super-happy customers drop,
+  from the daily opening bonus and by expanding. Spend them in the **Rewards** tab on coupons: −30% furniture, free hire,
+  −20% upgrade, half-price bill, double tips, rush hour, chill customers and a five-star review. Coins also buy exclusive
+  decor (Neon CANI Sign, Golden Pole).
 - 🛎️ Later you can hire a **Receptionist**, **Cashier** and **Cleaner** (Upgrades tab) to automate these jobs.
 - 🎵 Lo-fi background music (it gets richer as the shop grows) and sound effects: door bell, scissors, clippers, register,
   coins, sweeping. Toggle them with the 🎵 button or in the ⚙️ menu.
@@ -58,6 +62,7 @@ Each day runs from 09:00 to 19:00. Wages are paid at closing time; everything el
 | `js/iso.js` | Isometric projection and drawing primitives |
 | `js/sprites.js` | Procedurally drawn furniture and characters |
 | `js/world.js` | Simulation: pathfinding, customers, barbers, tap actions, bills, economy, day cycle, save/load |
+| `js/rewards.js` | Cani Coins, daily goals, coupon shop and the Rewards panel |
 | `js/audio.js` | Procedural background music and sound effects (Web Audio) |
 | `js/render.js` | Scene rendering (floor, walls, depth-sorted entities, overlays) |
 | `js/ui.js` | HUD, panels, modals, toasts and sound effects |

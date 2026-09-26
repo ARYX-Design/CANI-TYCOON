@@ -221,6 +221,35 @@ button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 #hudMoney.bump { animation: bump 0.25s ease-out; }
 @keyframes bump { 50% { transform: scale(1.12); } }
 
+/* ---------- coins & coupons ---------- */
+.chip.coins { color: #d7c2ff; font-weight: 700; font-family: inherit; cursor: pointer; }
+#hudCoins.bump { animation: bump 0.25s ease-out; }
+.price.coin-price { color: #c9a8ff; }
+.price s { color: var(--muted); font-weight: 400; margin-right: 3px; }
+.coupon-note { border: 1px dashed #b388ff; color: #e3d4ff; }
+.btn.coin-btn { background: #7c4dff; box-shadow: 0 3px 0 #4a2a9e; }
+.btn.coin-btn:disabled { background: #50536a; box-shadow: 0 3px 0 #33354a; }
+.coin-balance { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; margin: 4px 0 10px;
+  background: linear-gradient(135deg, rgba(124, 77, 255, 0.35), rgba(241, 196, 83, 0.18)); border: 1px solid rgba(179, 136, 255, 0.4); }
+.coin-balance .coin-big { font-size: 34px; }
+.coin-balance b { display: block; font-size: 28px; line-height: 1; font-variant-numeric: tabular-nums; }
+.coin-balance span { font-size: 12px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+.goal.ready { border-color: var(--gold); background: rgba(241, 196, 83, 0.1); }
+.goal.claimed { opacity: 0.5; }
+.goal-bar { height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.1); margin: 6px 0 3px; overflow: hidden; }
+.goal-bar span { display: block; height: 100%; background: var(--gold); border-radius: 3px; }
+.active-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.active-list span { background: rgba(124, 77, 255, 0.25); border: 1px solid rgba(179, 136, 255, 0.5); border-radius: 99px; padding: 4px 10px; font-size: 12.5px; }
+/* ticket-shaped coupon cards with a perforated stub */
+.ticket { position: relative; display: flex; align-items: stretch; margin-bottom: 8px; border-radius: 12px;
+  background: linear-gradient(90deg, #2d2350, #262a45); border: 1px solid rgba(179, 136, 255, 0.3); overflow: hidden; }
+.ticket.owned { background: linear-gradient(90deg, #4a3170, #2d2a50); border-color: rgba(241, 196, 83, 0.5); }
+.ticket-icon { width: 48px; display: grid; place-items: center; font-size: 24px; flex-shrink: 0; }
+.ticket-main { flex: 1; min-width: 0; padding: 10px 4px; }
+.ticket-stub { display: flex; align-items: center; justify-content: center; width: 96px; flex-shrink: 0; border-left: 2px dashed rgba(255, 255, 255, 0.18); }
+.ticket::before, .ticket::after { content: ''; position: absolute; right: 89px; width: 14px; height: 14px; border-radius: 50%; background: rgb(22, 24, 40); }
+.ticket::before { top: -7px; } .ticket::after { bottom: -7px; }
+
 /* ---------- build hint ---------- */
 #buildHint {
   position: fixed; z-index: 12; bottom: 100px; left: 50%; transform: translateX(-50%);
@@ -265,6 +294,8 @@ button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
   .chip { font-size: 12px; padding: 4px 8px; }
   .chip.money { font-size: 14px; }
   .chip.dim { display: none; }
+  #toolbar button { font-size: 10px; }
+  #toolbar button span { font-size: 18px; }
   .right { margin-left: auto; }
   #speedBtns button { width: 30px; height: 28px; }
   #toolbar { left: 8px; right: 8px; transform: none; bottom: 8px; justify-content: space-between; border-radius: 16px; }

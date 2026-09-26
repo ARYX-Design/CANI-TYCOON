@@ -73,6 +73,7 @@ const Renderer = {
     this.drawGhost(ctx, t);
     for (const p of Game.particles) { ctx.fillStyle = p.color; ctx.globalAlpha = Math.min(1, p.life); ctx.fillRect(p.x, p.y, 2, 1.5); }
     ctx.globalAlpha = 1;
+    this.drawDrops(ctx, t);
     this.drawSparkles(ctx);
     this.drawOverlays(ctx, t);
     ctx.restore();
@@ -501,11 +502,15 @@ const Renderer = {
   // coins flying from the floor to the money counter
   drawCoins(ctx) {
     if (!Game.coins.length) return;
-    const el = document.getElementById('hudMoney');
-    const r = el.getBoundingClientRect();
-    const tx = r.left + r.width / 2, ty = r.top + r.height / 2;
+    const targets = {};
+    for (const id of ['money', 'coins']) {
+      const el = document.getElementById(id === 'money' ? 'hudMoney' : 'hudCoins');
+      const r = el.getBoundingClientRect();
+      targets[id] = { el, x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    }
     const dt = 1 / 60;
     for (const c of Game.coins) {
+      const { el, x: tx, y: ty } = targets[c.target || 'money'];
       c.delay -= dt;
       if (c.delay > 0) continue;
       c.t += dt * 1.6;
@@ -515,9 +520,10 @@ const Renderer = {
       const x = sx + (tx - sx) * e;
       const y = sy + (ty - sy) * e - Math.sin(k * Math.PI) * 60;
       ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2);
-      ctx.fillStyle = '#f1c453'; ctx.fill();
-      ctx.strokeStyle = '#a07c1c'; ctx.lineWidth = 1.5; ctx.stroke();
-      ctx.fillStyle = '#a07c1c'; ctx.font = 'bold 7px Fredoka, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('$', x, y + 2.5);
+      const star = c.target === 'coins';
+      ctx.fillStyle = star ? '#b388ff' : '#f1c453'; ctx.fill();
+      ctx.strokeStyle = star ? '#6a3fc4' : '#a07c1c'; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.fillStyle = star ? '#fff' : '#a07c1c'; ctx.font = 'bold 7px Fredoka, sans-serif'; ctx.textAlign = 'center'; ctx.fillText(star ? '★' : '$', x, y + 2.5);
       if (k >= 1 && !c.done) {
         c.done = true;
         sfx('coin');
@@ -525,6 +531,30 @@ const Renderer = {
       }
     }
     Game.coins = Game.coins.filter(c => !c.done);
+  },
+
+  // Cani Coins on the floor: spinning purple star coins
+  drawDrops(ctx, t) {
+    for (const d of Game.drops) {
+      const p = iso(d.x, d.y);
+      const hop = Math.abs(Math.sin(t * 4 + d.seed * 6)) * 5;
+      const spin = Math.abs(Math.cos(t * 3 + d.seed * 10));
+      ellipse(ctx, p.x, p.y, 7, 3, 'rgba(0,0,0,0.25)');
+      if (d.life < 12 && Math.floor(t * 8) % 2) continue;   // blink before vanishing
+      ctx.save();
+      ctx.translate(p.x, p.y - 10 - hop);
+      ctx.scale(Math.max(0.15, spin), 1);
+      ctx.beginPath(); ctx.arc(0, 0, 7.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#b388ff'; ctx.fill();
+      ctx.strokeStyle = '#6a3fc4'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('★', 0, 3.5);
+      ctx.restore();
+    }
+  },
+
+  pickDrop(sx, sy) {
+    const w = this.toWorld(sx, sy);
+    return Game.drops.find(d => { const p = iso(d.x, d.y); return Math.abs(w.x - p.x) < 16 && w.y > p.y - 30 && w.y < p.y + 6; }) || null;
   },
 
   drawPiles(ctx) {

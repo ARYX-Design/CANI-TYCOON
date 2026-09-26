@@ -44,6 +44,11 @@ function updateHUD(force) {
   badge.textContent = due;
   badge.hidden = !due;
   $('#btnBills').classList.toggle('alert', overdue);
+  $('#hudCoins').textContent = `⭐ ${s.coins}`;
+  const claim = claimableGoals();
+  $('#rewardBadge').textContent = claim;
+  $('#rewardBadge').hidden = !claim;
+  $('#btnRewards').classList.toggle('pulse', claim > 0);
   $('#musicBtn').textContent = Sound.musicOn ? '🎵' : '🔇';
   const next = STAGES[s.stage + 1];
   $('#btnExpand').classList.toggle('pulse', !!next && expandRequirements().every(r => r.ok));
@@ -160,9 +165,9 @@ function renderPanel() {
   UI.lastPanel = performance.now();
   const body = $('#panelBody');
   const scroll = body.scrollTop;
-  const titles = { bills: '🧾 Bills', build: '🛠️ Build & Decorate', staff: '💇 Staff', services: '✂️ Services & Prices', upgrades: '⚡ Upgrades', expand: '🏙️ Expand the Empire', menu: '⚙️ Menu' };
+  const titles = { rewards: '🎟️ Rewards & Coupons', bills: '🧾 Bills', build: '🛠️ Build & Decorate', staff: '💇 Staff', services: '✂️ Services & Prices', upgrades: '⚡ Upgrades', expand: '🏙️ Expand the Empire', menu: '⚙️ Menu' };
   $('#panelTitle').textContent = titles[UI.panel] || '';
-  const html = ({ bills: billsPanel, build: buildPanel, staff: staffPanel, services: servicesPanel, upgrades: upgradesPanel, expand: expandPanel, menu: menuPanel })[UI.panel]();
+  const html = ({ rewards: rewardsPanel, bills: billsPanel, build: buildPanel, staff: staffPanel, services: servicesPanel, upgrades: upgradesPanel, expand: expandPanel, menu: menuPanel })[UI.panel]();
   if (body.dataset.html !== html) {
     body.innerHTML = html;
     body.dataset.html = html;
@@ -176,7 +181,8 @@ function buildPanel() {
   const s = Game.state;
   const cards = Object.entries(ITEMS).map(([key, it]) => {
     const locked = it.stage > s.stage;
-    const poor = s.money < it.cost;
+    const price = it.coinCost ? it.coinCost : itemCost(key);
+    const poor = it.coinCost ? s.coins < it.coinCost : s.money < price;
     const tags = [];
     if (it.station) tags.push('Station');
     if (it.seat) tags.push('Seat');
@@ -187,11 +193,12 @@ function buildPanel() {
       <div class="card-main"><div class="card-title">${it.name}</div>
       <div class="card-desc">${locked ? `Unlocks at ${STAGES[it.stage].name}` : it.desc}</div>
       <div class="tags">${tags.map(t => `<span>${t}</span>`).join('')}</div></div>
-      <div class="price">${fmt(it.cost)}</div></button>`;
+      <div class="price${it.coinCost ? ' coin-price' : ''}">${it.coinCost ? `⭐ ${it.coinCost}` : price < it.cost ? `<s>${fmt(it.cost)}</s> ${fmt(price)}` : fmt(it.cost)}</div></button>`;
   }).join('');
   const counts = {};
   s.items.forEach(i => { counts[i.type] = (counts[i.type] || 0) + 1; });
-  return `<div class="panel-note">Appeal <b>${decorScore()}</b> · Seats <b>${s.items.filter(i => ITEMS[i.type].seat).length}</b> · Chairs <b>${s.items.filter(i => ITEMS[i.type].station === 'chair').length}</b> · Barbers <b>${s.barbers.length}</b></div>
+  const coupon = s.armed.furniture30 ? '<div class="panel-note coupon-note">🎟️ −30% furniture coupon active for your next purchase</div>' : '';
+  return `${coupon}<div class="panel-note">Appeal <b>${decorScore()}</b> · Seats <b>${s.items.filter(i => ITEMS[i.type].seat).length}</b> · Chairs <b>${s.items.filter(i => ITEMS[i.type].station === 'chair').length}</b> · Barbers <b>${s.barbers.length}</b></div>
     <button class="card sell-card${UI.tool && UI.tool.mode === 'sell' ? ' selected' : ''}" data-action="sell"><div class="card-icon">💰</div><div class="card-main"><div class="card-title">Sell furniture</div><div class="card-desc">Tap an item to sell it for 50% of its price.</div></div></button>
     <div class="grid">${cards}</div>`;
 }
@@ -218,7 +225,7 @@ function staffPanel() {
       <div class="card-main"><div class="card-title">${ORIGINS[c.origin].flag} ${fullName(c)}</div>
       <div class="card-desc">Skill ${starsHTML(c.skill, true)} · Speed <b>${Math.round(c.speed * 100)}%</b></div>
       <div class="card-desc">Wage <b>${fmt(c.wage)}</b>/day</div></div>
-      <div class="side"><button class="btn small" data-action="hire" data-idx="${i}" ${full || s.money < c.fee ? 'disabled' : ''}>Hire ${fmt(c.fee)}</button></div></div>`).join('');
+      <div class="side"><button class="btn small" data-action="hire" data-idx="${i}" ${full || s.money < hireFee(c) ? 'disabled' : ''}>${hireFee(c) === 0 ? 'Hire 🎟️ free' : `Hire ${fmt(c.fee)}`}</button></div></div>`).join('');
   return `<div class="panel-note">Team <b>${s.barbers.length}/${st.maxBarbers}</b> at ${st.name}. Wages are paid at closing time.${full && s.stage < STAGES.length - 1 ? ' <b>Expand</b> to hire more barbers!' : ''}</div>
     <h3>Your team</h3>${team}
     <h3>Looking for work <span class="muted">(new faces every morning)</span></h3>${cands || '<div class="muted">Nobody today. Come back tomorrow.</div>'}`;
@@ -257,7 +264,7 @@ function upgradesPanel() {
   const s = Game.state;
   const card = ([key, u]) => {
     const lvl = s.upgrades[key], max = u.costs.length;
-    const cost = u.costs[lvl];
+    const cost = lvl < max ? upgradeCost(key) : 0;
     const locked = (u.stage || 0) > s.stage;
     const pips = max > 1 ? `<div class="pips">${Array.from({ length: max }, (_, i) => `<i class="${i < lvl ? 'on' : ''}"></i>`).join('')}</div>` : '';
     let side;
@@ -291,7 +298,8 @@ function billsPanel() {
       <div class="card-desc">${dueTxt}${b.late ? ' · late fees added' : ''}</div>
       <div class="card-desc small">${t.note}</div></div>
       <div class="side"><div class="price">${fmt(b.amount)}</div>
-      <button class="btn small" data-action="payBill" data-id="${b.id}" ${s.money < b.amount ? 'disabled' : ''}>Pay</button></div></div>`;
+      <button class="btn small" data-action="payBill" data-id="${b.id}" ${s.money < b.amount ? 'disabled' : ''}>Pay</button>
+      ${s.coupons.billHalf ? `<button class="btn small coin-btn" data-action="payBillHalf" data-id="${b.id}" ${s.money < Math.ceil(b.amount / 2) ? 'disabled' : ''}>🎟️ ½ ${fmt(Math.ceil(b.amount / 2))}</button>` : ''}</div></div>`;
   }).join('');
   return `<div class="panel-note">Unpaid: <b>${fmt(total)}</b>. Late bills add a 10% fee every night and cost reputation.</div>
     <button class="btn wide" data-action="payAll" ${s.money < total ? 'disabled' : ''}>Pay all · ${fmt(total)}</button>
@@ -357,6 +365,10 @@ function handlePanelClick(e) {
     case 'toggleSound': unlockAudio(); setSfx(!Sound.sfxOn); break;
     case 'toggleMusic': unlockAudio(); setMusic(!Sound.musicOn); break;
     case 'payBill': r = payBill(+el.dataset.id); if (r.ok) toast('🧾 Bill paid'); break;
+    case 'payBillHalf': r = payBill(+el.dataset.id, true); if (r.ok) toast('🎟️ Bill paid at half price!'); break;
+    case 'claimGoal': r = claimGoal(+el.dataset.idx); if (r.ok) { const b = el.getBoundingClientRect(); toast('⭐ Coins claimed!'); } break;
+    case 'buyCoupon': r = buyCoupon(el.dataset.id); break;
+    case 'useCoupon': r = useCoupon(el.dataset.id); break;
     case 'payAll': r = payAllBills(); if (r.ok) toast('🧾 All bills paid!'); break;
     case 'toggleNames': UI.showNames = !UI.showNames; break;
     case 'recenter': Renderer.fitCamera(); break;

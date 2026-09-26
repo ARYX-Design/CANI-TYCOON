@@ -55,6 +55,7 @@
   // audio may only start after a user gesture
   window.addEventListener('pointerdown', unlockAudio, { once: true });
   window.addEventListener('keydown', unlockAudio, { once: true });
+  $('#hudCoins').addEventListener('click', () => openPanel('rewards'));
   $('#musicBtn').addEventListener('click', () => { unlockAudio(); setMusic(!Sound.musicOn); updateHUD(true); });
 
   canvas.addEventListener('pointerdown', e => {
@@ -100,6 +101,8 @@
       Renderer.hover = tile;
       if (UI.tool) toolClick(tile);
       else if (!Game.nightMode) {
+        const drop = Renderer.pickDrop(e.clientX, e.clientY);
+        if (drop) { collectDrop(drop); drag = null; return; }
         const agent = Renderer.pickAgent(e.clientX, e.clientY);
         const item = Renderer.pickItem(e.clientX, e.clientY);
         handleWorldTap(agent, item, tile);

@@ -54,6 +54,8 @@ const ITEMS = {
   arcade:       { name: 'Arcade Machine',   cost: 1500, stage: 3, electric: true, decor: 5, patience: 0.15, icon: '🕹️', desc: '+5 appeal, waiting is fun now.' },
   aquarium:     { name: 'Aquarium',         cost: 2500, stage: 3, electric: true, decor: 7, icon: '🐠', desc: 'Relaxing fish. +7 appeal.' },
   goldChair:    { name: 'Gold Throne',      cost: 3000, stage: 4, station: 'chair', decor: 3, speed: 1.25, icon: '👑', desc: 'Luxury barber chair. 25% faster cuts.' },
+  neonSign:     { name: 'Neon CANI Sign',   cost: 0, coinCost: 30, stage: 0, decor: 6, electric: true, icon: '💡', desc: 'Coin-only exclusive. Glowing pink neon. +6 appeal.' },
+  goldenPole:   { name: 'Golden Pole',      cost: 0, coinCost: 20, stage: 0, decor: 5, icon: '✨', desc: 'Coin-only exclusive. A spinning gold barber pole. +5 appeal.' },
   statue:       { name: 'Cani Statue',      cost: 6000, stage: 4, decor: 12, icon: '🗿', desc: 'A golden statue of the founder. +12 appeal.' },
 };
 

@@ -9,6 +9,7 @@ const Game = {
   sparkles: [],       // fresh-cut sparkles
   coins: [],          // coins flying to the money counter
   piles: [],          // hair on the floor
+  drops: [],          // Cani Coins dropped by happy customers
   selected: null,     // agent shown in the inspector
   speed: 1,
   paused: false,
@@ -69,12 +70,14 @@ function initWorld(state) {
   Game.sparkles = [];
   Game.coins = [];
   Game.piles = [];
+  Game.drops = [];
   Game.selected = null;
   state.bills = state.bills || [];
   state.hints = state.hints || {};
   state.week = state.week || { revenue: 0 };
   state.nextBillId = state.nextBillId || 1;
   for (const k of Object.keys(UPGRADES)) if (state.upgrades[k] === undefined) state.upgrades[k] = 0;
+  initRewards(state);
   Game.barbers = [];
   // saves from before names had origins
   state.barbers.forEach(b => {
@@ -174,7 +177,7 @@ function canPlace(type, x, y) {
   const s = Game.state, def = ITEMS[type];
   if (!inBounds(x, y)) return { ok: false, reason: 'Outside the shop' };
   if (def.stage > s.stage) return { ok: false, reason: `Unlocks at ${STAGES[def.stage].name}` };
-  if (s.money < def.cost) return { ok: false, reason: 'Not enough money' };
+  if (def.coinCost ? s.coins < def.coinCost : s.money < itemCost(type)) return { ok: false, reason: def.coinCost ? `Needs ⭐${def.coinCost} Cani Coins` : 'Not enough money' };
   const d = doorTile();
   if (x === d.x && y === d.y) return { ok: false, reason: 'Keep the door clear' };
   if (itemAt(x, y)) return { ok: false, reason: 'Tile occupied' };
@@ -200,7 +203,8 @@ function placeItem(type, x, y) {
   const r = canPlace(type, x, y);
   if (!r.ok) return r;
   const s = Game.state;
-  s.money -= ITEMS[type].cost;
+  if (ITEMS[type].coinCost) s.coins -= ITEMS[type].coinCost;
+  else { s.money -= itemCost(type); consumeArmed('furniture30'); }
   s.items.push({ id: s.nextId++, type, x, y });
   sfx('place');
   emit('items');
@@ -211,10 +215,11 @@ function sellItem(item) {
   if (item.reservedBy || item.occupant || Game.customers.some(c => c.register === item && c.state !== 'leaving')) return { ok: false, reason: 'In use right now' };
   const s = Game.state;
   s.items = s.items.filter(i => i !== item);
-  const refund = Math.floor(ITEMS[item.type].cost * 0.5);
-  s.money += refund;
+  const def = ITEMS[item.type];
+  const refund = Math.floor((def.coinCost || def.cost) * 0.5);
+  if (def.coinCost) s.coins += refund; else s.money += refund;
   const p = iso(item.x + 0.5, item.y + 0.5, 30);
-  addFloater(p.x, p.y, `+$${refund}`, '#9be564');
+  addFloater(p.x, p.y, def.coinCost ? `+⭐${refund}` : `+$${refund}`, '#9be564');
   sfx('sell');
   emit('items');
   return { ok: true };
@@ -273,8 +278,10 @@ function hireCandidate(idx) {
   const s = Game.state, c = s.candidates[idx];
   if (!c) return { ok: false };
   if (s.barbers.length >= stage().maxBarbers) return { ok: false, reason: `${stage().name} fits only ${stage().maxBarbers} barber(s). Expand!` };
-  if (s.money < c.fee) return { ok: false, reason: 'Not enough money' };
-  s.money -= c.fee;
+  const fee = hireFee(c);
+  if (s.money < fee) return { ok: false, reason: 'Not enough money' };
+  s.money -= fee;
+  if (fee === 0) consumeArmed('freeHire');
   const b = { ...c, id: s.nextBarberId++ };
   delete b.fee;
   s.barbers.push(b);
@@ -336,8 +343,10 @@ function buyUpgrade(key) {
   const s = Game.state, u = UPGRADES[key], lvl = s.upgrades[key];
   if (lvl >= u.costs.length) return { ok: false, reason: 'Maxed out' };
   if ((u.stage || 0) > s.stage) return { ok: false, reason: `Unlocks at ${STAGES[u.stage].name}` };
-  if (s.money < u.costs[lvl]) return { ok: false, reason: 'Not enough money' };
-  s.money -= u.costs[lvl];
+  const cost = upgradeCost(key);
+  if (s.money < cost) return { ok: false, reason: 'Not enough money' };
+  s.money -= cost;
+  consumeArmed('upgrade20');
   s.upgrades[key]++;
   toast(u.helper ? `${u.icon} ${u.name} hired! They'll handle that for you now.` : `${u.icon} ${u.name} upgraded to level ${s.upgrades[key]}!`);
   sfx('hire');
@@ -361,6 +370,8 @@ function expandShop() {
   if (Game.customers.length) return { ok: false, reason: 'Wait until the shop is empty (end of day)' };
   s.money -= next.cost;
   s.stage++;
+  addCoins(20);
+  setTimeout(() => toast('⭐ +20 Cani Coins for expanding!', 3000, 'hint'), 1200);
   // the door moves with the bigger room – clear its tile
   const d = doorTile();
   const blocker = itemAt(d.x, d.y);
@@ -382,7 +393,7 @@ function expandShop() {
 function spawnRatePerHour() {
   const s = Game.state;
   const decor = Math.min(decorScore(), 40);
-  return (0.9 + s.rep * 0.75 + decor * 0.08) * (1 + s.stage * 0.5) *
+  return (effectActive('rushHour') ? 1.5 : 1) * (0.9 + s.rep * 0.75 + decor * 0.08) * (1 + s.stage * 0.5) *
     (1 + s.upgrades.marketing * 0.2) * PRICE_LEVELS[s.priceLevel].demand;
 }
 
@@ -400,7 +411,7 @@ function spawnCustomer() {
   const service = weightedService(person.female);
   if (!service) return;
   const d = doorTile();
-  const patience = rand(70, 130) * (1 + patienceBonus());
+  const patience = rand(70, 130) * (1 + patienceBonus()) * (effectActive('patience') ? 1.5 : 1);
   const c = {
     id: Game.uid++, x: d.x + 0.5, y: -0.25, path: [], speed: rand(1.4, 2.0), state: 'enter',
     service, patience, maxPatience: patience, alpha: 0, ...person,
@@ -498,6 +509,7 @@ function update(dtReal) {
   s.time += dtMin;
 
   updateBills(dtMin);
+  updateDrops(dtMin);
 
   // spawning
   if (s.time < CLOSE_TIME - 20) {
@@ -705,6 +717,7 @@ function boostService(c) {
   c.lastTap = now;
   c.progress = Math.min(0.999, c.progress + 0.03);
   c.taps = (c.taps || 0) + 1;
+  track('boosts');
   addHairBit(c); addHairBit(c);
   const p = iso(c.x, c.y, 46 + rand(-6, 6));
   Game.sparkles.push({ x: p.x + rand(-10, 10), y: p.y, vx: rand(-20, 20), vy: -30, life: 0.5 });
@@ -803,6 +816,7 @@ function sweep(pile) {
   const p = iso(pile.x + 0.5, pile.y + 0.5, 6);
   for (let i = 0; i < 6; i++) Game.sparkles.push({ x: p.x, y: p.y, vx: rand(-40, 40), vy: rand(-40, -10), life: 0.6 });
   addFloater(p.x, p.y - 10, '✨ Clean!', '#bde0fe', 1);
+  track('sweeps');
   sfx('sweep');
 }
 
@@ -931,8 +945,9 @@ function finishService(c) {
   const price = Math.round(c.service.price * PRICE_LEVELS[s.priceLevel].price);
   const tip = Math.round(price * sat * 0.25 * (1 + s.upgrades.loyalty * 0.15) * (registers().length ? 1.1 : 1));
   c.bill = { price, tip };
-  s.today.served++;
+  track('served');
   s.stats.served++;
+  if (sat > 0.8) { track('superHappy'); if (Math.random() < 0.4) dropCoin(c); }
   // stays in the chair until someone takes their money
   c.state = 'done';
   c.payWait = 0;
@@ -940,7 +955,9 @@ function finishService(c) {
 
 function pay(c, tipMult = 1, quiet) {
   const s = Game.state;
-  const tip = Math.round(c.bill.tip * tipMult);
+  const tip = Math.round(c.bill.tip * tipMult * (effectActive('doubleTips') ? 2 : 1));
+  if (tipMult > 1) track('fast');
+  track('earned', c.bill.price + tip);
   const total = c.bill.price + tip;
   s.money += total;
   s.today.revenue += c.bill.price;
@@ -961,8 +978,8 @@ function pay(c, tipMult = 1, quiet) {
 }
 
 // Coins that fly from the shop floor up to the money counter (drawn in screen space)
-function flyCoins(wx, wy, n) {
-  for (let i = 0; i < n; i++) Game.coins.push({ wx, wy, delay: i * 0.06, t: 0, jitter: rand(-14, 14) });
+function flyCoins(wx, wy, n, target = 'money') {
+  for (let i = 0; i < n; i++) Game.coins.push({ wx, wy, delay: i * 0.06, t: 0, jitter: rand(-14, 14), target });
 }
 
 function updateBarber(b, dt) {
@@ -1062,6 +1079,7 @@ function endDay() {
   Game.nightMode = true;
   Game.particles = [];
   Game.piles = [];          // the night cleaner sweeps up
+  Game.drops = [];
   s.day++;
   s.time = OPEN_TIME;
   s.today = freshToday(s.rep);
@@ -1108,12 +1126,17 @@ function updateBills() {
   lastPowerOff = p; lastWaterOff = w;
 }
 
-function payBill(id) {
+function payBill(id, half) {
   const s = Game.state;
   const b = s.bills.find(x => x.id === id);
   if (!b) return { ok: false };
-  if (s.money < b.amount) return { ok: false, reason: `Not enough money for the ${BILL_TYPES[b.type].name} bill` };
-  s.money -= b.amount;
+  if (half && !s.coupons.billHalf) return { ok: false, reason: 'You have no Half-Price Bill coupon' };
+  const amount = half ? Math.ceil(b.amount / 2) : b.amount;
+  if (s.money < amount) return { ok: false, reason: `Not enough money for the ${BILL_TYPES[b.type].name} bill` };
+  if (half) s.coupons.billHalf--;
+  s.money -= amount;
+  b.amount = amount;
+  track('billsPaid');
   s.bills = s.bills.filter(x => x !== b);
   s.stats.bills = (s.stats.bills || 0) + b.amount;
   sfx('stamp');
@@ -1133,6 +1156,11 @@ function payAllBills() {
 function startDay() {
   Game.nightMode = false;
   Game.spawnAcc = 0;
+  const s = Game.state;
+  newGoals(s);
+  const bonus = 3 + Math.min(s.stage, 4);
+  addCoins(bonus);
+  toast(`☀️ Opening bonus: +⭐${bonus} Cani Coins. New daily goals are in Rewards!`, 3200, 'hint');
   emit('dayStart');
 }
 
