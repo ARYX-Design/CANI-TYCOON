@@ -262,7 +262,7 @@ const Renderer = {
     roundRect(ctx, 0, 2, len * 3.2, 14, 3, '#15172a', 'rgba(241,196,83,0.6)');
     ctx.font = '600 9px Fredoka, sans-serif';
     ctx.fillStyle = '#f1c453'; ctx.textAlign = 'center';
-    ctx.fillText(`CANI · ${st.name.toUpperCase()}`, len * 1.6, 12);
+    ctx.fillText('CREATED BY XARDIIG', len * 1.6, 12);
     ctx.restore();
   },
 
@@ -424,7 +424,9 @@ const Renderer = {
     this.targetArrows = [];
     for (const c of Game.customers) {
       if (c.alpha < 0.5) continue;
-      if (customerNeedsSeat(c) && !hasHelper('receptionist') && c !== Game.selected) {
+      // the 👆 badge only when nobody will seat them automatically
+      const autoSeated = hasHelper('receptionist') || (hasHelper('initiative') && idleBarbers().length > 0);
+      if (customerNeedsSeat(c) && !autoSeated && c !== Game.selected) {
         const p = isoK(c.x, c.y, (c.sitting ? 17 : 14) + 70 + bounce);
         tapBadge(ctx, '👆', p.x, p.y, '#50dc78');
       } else if (c.state === 'done' && !hasHelper('cashier')) {

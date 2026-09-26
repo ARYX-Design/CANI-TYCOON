@@ -271,7 +271,7 @@ function upgradesPanel() {
     const locked = (u.stage || 0) > s.stage;
     const pips = max > 1 ? `<div class="pips">${Array.from({ length: max }, (_, i) => `<i class="${i < lvl ? 'on' : ''}"></i>`).join('')}</div>` : '';
     let side;
-    if (lvl >= max) side = `<span class="badge">${u.helper ? 'Hired' : 'MAX'}</span>`;
+    if (lvl >= max) side = `<span class="badge">${u.skill ? 'Learned' : u.helper ? 'Hired' : 'MAX'}</span>`;
     else if (locked) side = `<span class="muted small">🔒 ${STAGES[u.stage].name}</span>`;
     else side = `<button class="btn small" data-action="upgrade" data-key="${key}" ${s.money < cost ? 'disabled' : ''}>${fmt(cost)}</button>`;
     return `<div class="card${locked ? ' locked' : ''}">
@@ -280,7 +280,8 @@ function upgradesPanel() {
       <div class="side">${side}</div></div>`;
   };
   const list = Object.entries(UPGRADES);
-  return `<h3>Equipment</h3>${list.filter(([, u]) => !u.helper).map(card).join('')}
+  return `<h3>Barber skills</h3>${list.filter(([, u]) => u.skill).map(card).join('')}
+    <h3>Equipment</h3>${list.filter(([, u]) => !u.helper && !u.skill).map(card).join('')}
     <h3>Helpers</h3><div class="panel-note">Until you hire helpers, <b>you</b> seat customers, take payments and sweep the floor.</div>
     ${list.filter(([, u]) => u.helper).map(card).join('')}`;
 }

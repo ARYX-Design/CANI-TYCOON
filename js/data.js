@@ -86,6 +86,7 @@ const SERVICES = [
 ];
 
 const UPGRADES = {
+  initiative: { name: 'Proactive Barbers', icon: '🙋', desc: 'A free barber calls the customer who has waited longest to a chair – no tapping needed.', costs: [450], stage: 0, skill: true },
   receptionist: { name: 'Receptionist', icon: '🛎️', desc: 'Seats waiting customers for you.', costs: [1200], stage: 1, helper: true },
   cashier:   { name: 'Cashier',          icon: '🧾', desc: 'Sends finished customers to pay and rings them up.', costs: [1800], stage: 2, helper: true },
   cleaner:   { name: 'Cleaner',          icon: '🧹', desc: 'Sweeps hair off the floor.', costs: [700], stage: 1, helper: true },

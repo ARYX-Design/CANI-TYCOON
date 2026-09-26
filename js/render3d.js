@@ -177,7 +177,7 @@ function buildRoom() {
     ctx.fillStyle = '#15172a'; ctx.fillRect(0, 0, w, h);
     ctx.strokeStyle = 'rgba(241,196,83,0.7)'; ctx.lineWidth = 4; ctx.strokeRect(4, 4, w - 8, h - 8);
     ctx.fillStyle = '#f1c453'; ctx.font = '600 34px Fredoka, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(`CANI · ${st.name.toUpperCase()}`, w / 2, h / 2 + 2);
+    ctx.fillText('CREATED BY XARDIIG', w / 2, h / 2 + 2);
   });
   const plaque = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 0.4), new THREE.MeshBasicMaterial({ map: plaqueTex }));
   plaque.position.set(n / 2, -0.28, n + 0.002);

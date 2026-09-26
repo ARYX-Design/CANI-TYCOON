@@ -351,7 +351,8 @@ function buyUpgrade(key) {
   s.money -= cost;
   consumeArmed('upgrade20');
   s.upgrades[key]++;
-  toast(u.helper ? `${u.icon} ${u.name} hired! They'll handle that for you now.` : `${u.icon} ${u.name} upgraded to level ${s.upgrades[key]}!`);
+  toast(u.skill ? `${u.icon} Your barbers learned ${u.name}! They'll call waiting customers themselves.`
+    : u.helper ? `${u.icon} ${u.name} hired! They'll handle that for you now.` : `${u.icon} ${u.name} upgraded to level ${s.upgrades[key]}!`);
   sfx('hire');
   return { ok: true };
 }
@@ -554,6 +555,7 @@ function update(dtReal) {
   }
 
   if (hasHelper('receptionist')) autoSeat();
+  else if (hasHelper('initiative')) barbersCallNext();
   assignBarbers();
   if (hasHelper('cleaner') && Game.piles.length) {
     Game.cleanT = (Game.cleanT || 0) + dtMin;
@@ -669,6 +671,28 @@ function autoSeat() {
   for (const c of waiting) {
     const st = nearestFreeStation(c);
     if (st) seatAt(c, st);
+  }
+}
+
+// Proactive Barbers skill: every free barber calls the longest-waiting customer to the free station nearest them
+function barbersCallNext() {
+  const idle = idleBarbers();
+  const unmatched = Game.customers.filter(c => (c.state === 'toStation' || c.state === 'atStation') && !c.cutBy).length;
+  let free = idle.length - unmatched;
+  if (free <= 0) return;
+  const waiting = Game.customers
+    .filter(c => !c.outside && (c.state === 'waiting' || (c.state === 'enter' && c.alpha >= 1)))
+    .sort((a, b) => a.patience / a.maxPatience - b.patience / b.maxPatience);
+  for (const c of waiting) {
+    if (free <= 0) break;
+    const b = idle[idle.length - free];
+    const stations = freeStation(c.service.station)
+      .sort((p, q) => (Math.abs(p.x - b.x) + Math.abs(p.y - b.y)) - (Math.abs(q.x - b.x) + Math.abs(q.y - b.y)));
+    const st = stations[0];
+    if (st && seatAt(c, st).ok) {
+      free--;
+      if (Math.random() < 0.5) say(b, 'next');
+    }
   }
 }
 
@@ -866,7 +890,7 @@ function updateCustomer(c, dt, dtMin) {
       break;
     case 'waiting':
       patienceTick(c, dtMin * (c.standing ? 1.5 : 1));
-      if (customerNeedsSeat(c)) hint('seat', `👆 ${c.name} is waiting! Tap them, then tap a free chair.`);
+      if (customerNeedsSeat(c) && !hasHelper('initiative')) hint('seat', `👆 ${c.name} is waiting! Tap them, then tap a free chair.`);
       break;
     case 'toStation':
       c.alpha = Math.min(1, c.alpha + dt * 3);

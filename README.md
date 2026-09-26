@@ -34,6 +34,8 @@ You can also serve the folder, for example with `npx serve .`.
 - 📸 **Instagram bonus:** in Rewards, tap **Follow** to open [@xardiig](https://www.instagram.com/xardiig/) on
   Instagram, then **Claim** ⭐50 once. Instagram doesn't let games check who follows an account, so this is on trust
   (one claim per player/account). The list lives in `server/social.json`; add the barbershop's own account there too.
+- 🙋 **Proactive Barbers** (Upgrades → Barber skills, $450, available from the garage): a free barber calls the
+  customer who has waited longest to a chair by themselves.
 - 🛎️ Later you can hire a **Receptionist**, **Cashier** and **Cleaner** (Upgrades tab) to automate these jobs.
 - 🎵 Lo-fi background music (it gets richer as the shop grows) and sound effects: door bell, scissors, clippers, register,
   coins, sweeping. Toggle them with the 🎵 button or in the ⚙️ menu.
