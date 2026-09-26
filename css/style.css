@@ -272,6 +272,21 @@ button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .coupon-code { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 22px; letter-spacing: 2px; margin-top: 12px; user-select: text; -webkit-user-select: text; }
 .coupon-stamp { display: inline-block; font-size: 30px; font-weight: 700; color: var(--red); border: 4px solid var(--red); border-radius: 10px; padding: 6px 18px; transform: rotate(-8deg); margin: 18px 0; }
 
+.account-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; background: var(--card); border-radius: 12px; padding: 8px 10px; margin-bottom: 10px; }
+.account-row.signin { border: 1px solid var(--gold); background: rgba(241, 196, 83, 0.1); }
+.field-label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 6px; }
+.field { width: 100%; font: inherit; font-size: 17px; color: var(--text); background: rgba(0, 0, 0, 0.35); border: 1px solid var(--line);
+  border-radius: 12px; padding: 11px 13px; outline: none; user-select: text; -webkit-user-select: text; }
+.field:focus { border-color: var(--gold); }
+.field.code { font-size: 28px; letter-spacing: 10px; text-align: center; font-variant-numeric: tabular-nums; }
+.field-error { min-height: 18px; color: #ff8a8a; font-size: 13px; margin-top: 6px; }
+
+/* ---------- rotate buttons (3D view only) ---------- */
+#rotateBtns { position: fixed; z-index: 10; right: 14px; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); display: none; gap: 6px; }
+body.view3d #rotateBtns { display: flex; }
+#rotateBtns button { width: 44px; height: 44px; border-radius: 50%; background: var(--panel); border: 1px solid var(--line); font-size: 22px; box-shadow: 0 6px 18px rgba(0,0,0,0.35); }
+#rotateBtns button:active { transform: scale(0.92); }
+
 /* ---------- build hint ---------- */
 #buildHint {
   position: fixed; z-index: 12; bottom: 100px; left: 50%; transform: translateX(-50%);
@@ -327,6 +342,7 @@ button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
   #panel { left: 8px; right: 8px; width: auto; top: auto; bottom: 80px; max-height: 58vh; animation-name: slideUp; }
   @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } }
   #inspect { left: 8px; right: 8px; width: auto; bottom: 80px; }
+  #rotateBtns { right: 8px; bottom: 84px; }
   #buildHint { bottom: 82px; left: 8px; right: 8px; transform: none; white-space: normal; font-size: 13px; }
   #toasts { top: 96px; width: calc(100% - 32px); }
   .toast { text-align: center; }

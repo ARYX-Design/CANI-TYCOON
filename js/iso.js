@@ -4,14 +4,29 @@ const TW = 64;   // tile width in px
 const TH = 32;   // tile height in px
 const WALL_H = 96;
 
+// View rotation around the room centre (3D view only). Everything that maps tiles to the screen goes
+// through iso()/screenToTile(), so taps, labels and effects follow the rotated camera automatically.
+const VIEW = { angle: 0, target: 0, cx: 0, cy: 0 };
+
 function iso(x, y, z = 0) {
+  if (VIEW.angle) {
+    const c = Math.cos(VIEW.angle), s = Math.sin(VIEW.angle), dx = x - VIEW.cx, dy = y - VIEW.cy;
+    x = VIEW.cx + c * dx + s * dy;
+    y = VIEW.cy - s * dx + c * dy;
+  }
   return { x: (x - y) * TW / 2, y: (x + y) * TH / 2 - z };
 }
 
 function screenToTile(wx, wy) {
   const a = wx / (TW / 2);
   const b = wy / (TH / 2);
-  return { x: (a + b) / 2, y: (b - a) / 2 };
+  let x = (a + b) / 2, y = (b - a) / 2;
+  if (VIEW.angle) {
+    const c = Math.cos(VIEW.angle), s = Math.sin(VIEW.angle), dx = x - VIEW.cx, dy = y - VIEW.cy;
+    x = VIEW.cx + c * dx - s * dy;
+    y = VIEW.cy + s * dx + c * dy;
+  }
+  return { x, y };
 }
 
 function shade(hex, amt) {

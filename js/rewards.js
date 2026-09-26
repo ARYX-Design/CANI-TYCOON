@@ -123,6 +123,10 @@ function rewardsPanel() {
   }).join('');
   const today = online && Cloud.me ? `<div class="cap-row"><span>Earned today</span><div class="goal-bar"><span style="width:${Math.round(Cloud.me.earnedToday / Cloud.me.cap * 100)}%"></span></div><b>${Cloud.me.earnedToday}/${Cloud.me.cap}</b></div>` : '';
   const list = online ? Cloud.rewards : DEFAULT_REWARDS;
+  const signedIn = online && Cloud.me && Cloud.me.signedIn;
+  const account = !online ? '' : signedIn
+    ? `<div class="account-row"><span>🔐 Signed in as <b>${Cloud.me.contact}</b></span><button class="btn small danger" data-action="signOut">Sign out</button></div>`
+    : `<div class="account-row signin"><span>Sign in with your phone or email to exchange coins for real coupons.</span><button class="btn small primary" data-action="signIn">Sign in</button></div>`;
   const rewards = list.map(r => `<div class="ticket real">
       <div class="ticket-icon">${r.icon}</div>
       <div class="ticket-main"><div class="card-title">${r.name}</div><div class="card-desc">${r.desc}${r.limitPer30Days ? ` · max ${r.limitPer30Days}× per 30 days` : ''}</div></div>
@@ -136,7 +140,7 @@ function rewardsPanel() {
     : `<div class="muted small">${online ? 'No coupons yet. Exchange your coins above!' : 'Your coupons will appear here.'}</div>`;
   const offline = online ? '' : `<div class="panel-note offline-note">🔌 Coins become real coupons in the official CANI game at the barbershop's website. This preview isn't connected to the shop's rewards server, so exchanging is switched off here.</div>`;
   return `<div class="coin-balance"><span class="coin-big">⭐</span><div><b>${s.coins}</b><span>Cani Coins</span></div></div>
-    ${today}${offline}
+    ${account}${today}${offline}
     <h3>Real rewards at CANI Barbershop</h3>
     <div class="panel-note">Exchange coins for coupons you use in the real shop: show the QR code at the counter.</div>
     ${rewards}

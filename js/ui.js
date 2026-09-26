@@ -370,12 +370,12 @@ function handlePanelClick(e) {
     case 'payBill': r = payBill(+el.dataset.id); if (r.ok) toast('🧾 Bill paid'); break;
     case 'payBillHalf': r = payBill(+el.dataset.id, true); if (r.ok) toast('🎟️ Bill paid at half price!'); break;
     case 'claimGoal': r = claimGoal(+el.dataset.idx); if (r.ok) { const b = el.getBoundingClientRect(); toast('⭐ Coins claimed!'); } break;
-    case 'redeem': {
-      const rw = Cloud.rewards.find(x => x.id === el.dataset.id);
-      if (rw) showModal(`<h2>${rw.icon} ${rw.name}</h2><p>Exchange <b>⭐ ${rw.cost}</b> Cani Coins for this coupon? You'll get a code and QR to show at the counter.</p>`,
-        [{ label: 'Cancel' }, { label: `Exchange ⭐ ${rw.cost}`, cls: 'primary', fn: () => redeemReward(rw.id) }]);
+    case 'redeem': redeemConfirm(el.dataset.id); break;
+    case 'signIn': openSignIn(); break;
+    case 'signOut':
+      showModal('<h2>Sign out?</h2><p>Your coins and coupons stay safe in your account. Sign in again any time with the same phone number or email.</p>',
+        [{ label: 'Cancel' }, { label: 'Sign out', cls: 'danger', fn: signOut }]);
       break;
-    }
     case 'showCoupon': showCoupon(el.dataset.id); break;
     case 'payAll': r = payAllBills(); if (r.ok) toast('🧾 All bills paid!'); break;
     case 'toggleNames': UI.showNames = !UI.showNames; break;
@@ -500,7 +500,7 @@ function showIntro() {
       <li>💇 <b>Hire</b> barbers and give them any name you like ✏️. Unlock <b>services</b> and buy <b>upgrades</b>.</li>
       <li>🏙️ <b>Expand</b> from the garage to a corner shop, downtown, a studio and finally the <b>Cani Empire HQ</b>.</li>
     </ul>
-    <p class="muted small">Drag to move the camera, scroll / pinch to zoom. Space pauses, 1-3 set speed.</p>`,
+    <p class="muted small">Drag to move the camera, scroll / pinch to zoom, ⟲ ⟳ (or Q / E) to rotate. Space pauses, 1-3 set speed.</p>`,
     [{ label: "Let's cut some hair ✂️", cls: 'primary', fn: () => { unlockAudio(); Game.state.introSeen = true; Game.paused = false; } }]);
 }
 

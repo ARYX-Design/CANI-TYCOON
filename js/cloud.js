@@ -42,6 +42,7 @@ async function cloudInit() {
     const r = await api('GET', '/api/rewards');
     Cloud.rewards = r.rewards;
     Cloud.cap = r.cap;
+    Cloud.signIn = r.signIn;
   } catch (e) { return; }   // no server here: stay offline
   Cloud.token = load(TOKEN_KEY);
   Cloud.pending = Math.max(0, +load(PENDING_KEY) || 0);
@@ -152,4 +153,100 @@ function showCoupon(code) {
       <div class="coupon-code">${c.code}</div>
       <p>${c.status === 'active' ? `Show this at the counter. Valid until <b>${exp}</b>. One use only.` : c.status === 'used' ? `Used on ${new Date(c.usedAt).toLocaleDateString()}.` : `Expired on ${exp}.`}</p>
     </div>`, [{ label: 'Close', cls: 'primary' }]);
+}
+
+// ---------- phone / email sign-in ----------
+
+function openSignIn(afterId) {
+  if (!Cloud.online) return;
+  const m = $('#modal'), card = $('#modalCard');
+  const opts = Cloud.signIn || { email: true, phone: true };
+  const hint = opts.email && opts.phone ? 'phone number or email' : opts.phone ? 'phone number' : 'email';
+  let contact = '';
+  const step1 = (err = '') => {
+    card.innerHTML = `<h2>🔐 Sign in</h2>
+      <p>Real coupons are tied to your ${hint}, so only you can use them. We'll send you a 6-digit code.</p>
+      <label class="field-label" for="signContact">Phone (with country code) or email</label>
+      <input class="field" id="signContact" autocomplete="username" inputmode="email" placeholder="+386 40 123 456 or you@mail.com" value="${contact.replace(/"/g, '')}">
+      <div class="field-error" id="signErr">${err}</div>
+      <div class="modal-btns"><button class="btn danger" data-s="cancel">Cancel</button><button class="btn primary" data-s="send">Send code</button></div>`;
+    const input = $('#signContact');
+    input.focus();
+    input.onkeydown = e => { if (e.key === 'Enter') send(); e.stopPropagation(); };
+    card.querySelector('[data-s="send"]').onclick = send;
+    card.querySelector('[data-s="cancel"]').onclick = close;
+  };
+  const step2 = (to, devCode, err = '') => {
+    card.innerHTML = `<h2>📨 Enter your code</h2>
+      <p>We sent a 6-digit code to <b>${to}</b>.</p>
+      ${devCode ? `<p class="tip">Test mode: your code is <b>${devCode}</b></p>` : ''}
+      <label class="field-label" for="signCode">Code</label>
+      <input class="field code" id="signCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••">
+      <div class="field-error" id="signErr">${err}</div>
+      <div class="modal-btns"><button class="btn danger" data-s="back">Back</button><button class="btn primary" data-s="verify">Sign in</button></div>`;
+    const input = $('#signCode');
+    input.focus();
+    input.onkeydown = e => { if (e.key === 'Enter') verify(); e.stopPropagation(); };
+    input.oninput = () => { input.value = input.value.replace(/\D/g, '').slice(0, 6); if (input.value.length === 6) verify(); };
+    card.querySelector('[data-s="verify"]').onclick = verify;
+    card.querySelector('[data-s="back"]').onclick = () => step1();
+  };
+  const busy = on => card.querySelectorAll('button').forEach(b => { b.disabled = on; });
+  async function send() {
+    contact = $('#signContact').value.trim();
+    busy(true);
+    try {
+      const r = await api('POST', '/api/auth/start', { contact });
+      step2(r.to, r.devCode);
+    } catch (e) { step1(e.message); }
+  }
+  async function verify() {
+    const code = $('#signCode').value;
+    if (code.length !== 6) return;
+    busy(true);
+    try {
+      const r = await api('POST', '/api/auth/verify', { contact, code });
+      Cloud.token = r.token;
+      store(TOKEN_KEY, r.token);
+      Cloud.me = r;
+      syncCoinDisplay();
+      close();
+      sfx('fanfare');
+      toast(`✅ Signed in as ${r.contact}${r.merged ? ` · +⭐${r.merged} from this device` : ''}`, 3500);
+      if (UI.panel === 'rewards') renderPanel();
+      if (afterId) redeemConfirm(afterId);
+    } catch (e) {
+      const to = card.querySelector('b') ? card.querySelector('b').textContent : contact;
+      step2(to, '', e.message);
+    }
+  }
+  function close() { m.classList.add('hidden'); }
+  step1();
+  m.classList.remove('hidden');
+}
+
+async function signOut() {
+  if (!Cloud.online) return;
+  try { await api('POST', '/api/auth/logout'); } catch (e) { /* token is dropped anyway */ }
+  store(TOKEN_KEY, null);
+  Cloud.token = null;
+  Cloud.pending = 0;
+  store(PENDING_KEY, 0);
+  try {
+    const r = await api('POST', '/api/players');
+    Cloud.token = r.token;
+    store(TOKEN_KEY, r.token);
+    Cloud.me = r;
+  } catch (e) { Cloud.me = null; }
+  syncCoinDisplay();
+  toast('Signed out. Coins you earn now stay on this device until you sign in.', 3500);
+  if (UI.panel === 'rewards') renderPanel();
+}
+
+function redeemConfirm(id) {
+  const rw = Cloud.rewards.find(x => x.id === id);
+  if (!rw) return;
+  if (!Cloud.me || !Cloud.me.signedIn) { openSignIn(id); return; }
+  showModal(`<h2>${rw.icon} ${rw.name}</h2><p>Exchange <b>⭐ ${rw.cost}</b> Cani Coins for this coupon? You'll get a code and QR to show at the counter.</p>`,
+    [{ label: 'Cancel' }, { label: `Exchange ⭐ ${rw.cost}`, cls: 'primary', fn: () => redeemReward(rw.id) }]);
 }

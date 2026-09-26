@@ -120,8 +120,11 @@ function initR3() {
   R3.sun.shadow.radius = 3;
   R3.scene.add(R3.sun, R3.sun.target);
 
+  // everything that belongs to the shop lives in `world`, which turns when the view rotates
+  R3.world = new THREE.Group();
+  R3.scene.add(R3.world);
   R3.fx = new THREE.Group();
-  R3.scene.add(R3.fx);
+  R3.world.add(R3.fx);
   R3.ok = true;
   setView3D(R3.enabled);
 }
@@ -129,6 +132,7 @@ function initR3() {
 function setView3D(on) {
   R3.enabled = on;
   R3.active = R3.ok && on;
+  if (!R3.active) { VIEW.angle = VIEW.target = 0; }
   if (R3.renderer) R3.renderer.domElement.style.display = R3.active ? 'block' : 'none';
   document.body.classList.toggle('view3d', R3.active);
   try { localStorage.setItem('cani-view', on ? '3d' : '2d'); } catch (e) { /* ignore */ }
@@ -158,9 +162,9 @@ function buildRoom() {
   const key = Game.state.stage + '|' + n;
   if (key === R3.roomKey) return;
   R3.roomKey = key;
-  if (R3.room) { disposeGroup(R3.room); R3.scene.remove(R3.room); }
+  if (R3.room) { disposeGroup(R3.room); R3.world.remove(R3.room); }
   const g = R3.room = new THREE.Group();
-  R3.scene.add(g);
+  R3.world.add(g);
 
   // floating slab
   const slab = mesh(new THREE.BoxGeometry(n + 0.25, 0.56, n + 0.25), [
@@ -186,28 +190,32 @@ function buildRoom() {
   floor.receiveShadow = true;
   g.add(floor);
 
-  // walls (boxes) + painted inner faces
-  const wallTop = shade(st.wall, -0.35);
-  const lw = mesh(new THREE.BoxGeometry(0.25, WALL_UNITS, n + 0.25), [
-    mat(shade(st.wall, -0.1)), mat(shade(st.wall, -0.3)), mat(wallTop), mat(wallTop), mat(shade(st.wall, -0.3)), mat(shade(st.wall, -0.3))]);
-  lw.position.set(-0.125, WALL_UNITS / 2, (n - 0.25) / 2);
-  const rw = mesh(new THREE.BoxGeometry(n, WALL_UNITS, 0.25), [
-    mat(shade(st.wall, -0.3)), mat(shade(st.wall, -0.3)), mat(wallTop), mat(wallTop), mat(st.wall), mat(st.wall)]);
-  rw.position.set(n / 2, WALL_UNITS / 2, -0.125);
-  g.add(lw, rw);
-  for (const side of ['left', 'right']) {
+  // four walls: the two facing the camera drop to low stubs so you can look inside (see updateWalls)
+  const wallTop = shade(st.wall, -0.35), outer = shade(st.wall, -0.3);
+  const H = WALL_UNITS;
+  const defs = [
+    { side: 'left',  size: [0.25, n + 0.5], pos: [-0.125, n / 2], plane: [0.003, n / 2, Math.PI / 2], normal: [-1, 0] },
+    { side: 'right', size: [n, 0.25],        pos: [n / 2, -0.125], plane: [n / 2, 0.003, 0], normal: [0, -1] },
+    { side: 'east',  size: [0.25, n + 0.5], pos: [n + 0.125, n / 2], plane: [n - 0.003, n / 2, -Math.PI / 2], normal: [1, 0] },
+    { side: 'south', size: [n, 0.25],        pos: [n / 2, n + 0.125], plane: [n / 2, n - 0.003, Math.PI], normal: [0, 1] },
+  ];
+  R3.wallParts = [];
+  for (const d of defs) {
+    const boxM = mesh(new THREE.BoxGeometry(d.size[0], H, d.size[1]), [mat(outer), mat(outer), mat(wallTop), mat(wallTop), mat(outer), mat(outer)]);
+    boxM.position.set(d.pos[0], H / 2, d.pos[1]);
     const tex = canvasTex(Math.round(n * WALL_PX * 2), WALL_H * 2, () => {});
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(n, WALL_UNITS), new THREE.MeshLambertMaterial({ map: tex }));
-    m.receiveShadow = true;
-    if (side === 'left') { m.rotation.y = Math.PI / 2; m.position.set(0.003, WALL_UNITS / 2, n / 2); }
-    else m.position.set(n / 2, WALL_UNITS / 2, 0.003);
-    g.add(m);
-    R3.walls[side] = tex;
+    const plane = new THREE.Mesh(new THREE.PlaneGeometry(n, H), new THREE.MeshLambertMaterial({ map: tex }));
+    plane.receiveShadow = true;
+    plane.rotation.y = d.plane[2];
+    plane.position.set(d.plane[0], H / 2, d.plane[1]);
+    g.add(boxM, plane);
+    R3.walls[d.side] = tex;
+    R3.wallParts.push({ box: boxM, plane, normal: d.normal, h: 1 });
   }
   R3.lastPaint = -1;
 
   // lamps: real point lights at the wall sconces
-  R3.lamps.forEach(l => R3.scene.remove(l));
+  R3.lamps.forEach(l => R3.world.remove(l));
   R3.lamps = [];
   const spots = [];
   if (st.floor === 'concrete') spots.push([2.35, 90, 0.25, 0xdfeaff]);
@@ -218,7 +226,7 @@ function buildRoom() {
   for (const [x, zpx, z, col] of spots.slice(0, 6)) {
     const L = new THREE.PointLight(col, 0.5, 5.5, 2);
     L.position.set(x, zpx * U, z);
-    R3.scene.add(L);
+    R3.world.add(L);
     R3.lamps.push(L);
   }
 
@@ -230,7 +238,7 @@ function buildRoom() {
   sc.updateProjectionMatrix();
 
   // furniture meshes are rebuilt for the new room
-  R3.items.forEach(o => { disposeGroup(o.group); R3.scene.remove(o.group); });
+  R3.items.forEach(o => { disposeGroup(o.group); R3.world.remove(o.group); });
   R3.items.clear();
 }
 
@@ -276,7 +284,7 @@ function paintFloor(ctx, st, n) {
 // Paint the inside of both walls. Coordinates: u along the wall in px (35.78 per tile), v from the top (0..96).
 function paintWalls(t) {
   const st = stage(), n = st.size, H = WALL_H;
-  for (const side of ['left', 'right']) {
+  for (const side of ['left', 'right', 'east', 'south']) {
     const tex = R3.walls[side];
     const ctx = tex.userData.ctx, c = tex.userData.canvas;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -284,7 +292,7 @@ function paintWalls(t) {
     ctx.scale(2, 2);
     const W = n * WALL_PX;
     const at = a => side === 'left' ? (n - a) * WALL_PX : a * WALL_PX;
-    ctx.fillStyle = side === 'left' ? shade(st.wall, -0.06) : st.wall;
+    ctx.fillStyle = side === 'right' ? st.wall : shade(st.wall, -0.06);
     ctx.fillRect(0, 0, W, H);
     const gr = ctx.createLinearGradient(0, 0, 0, H);
     gr.addColorStop(0, 'rgba(255,255,255,0.1)'); gr.addColorStop(0.6, 'rgba(255,255,255,0)'); gr.addColorStop(1, 'rgba(0,0,0,0.14)');
@@ -295,6 +303,18 @@ function paintWalls(t) {
     ctx.fillStyle = shade(st.wallDark, -0.35); ctx.fillRect(0, H - 4, W, 4);
 
     const wallAt = (a, fn) => { ctx.save(); ctx.translate(at(a), H); fn(); ctx.restore(); };
+    if (side === 'east' || side === 'south') {
+      // the walls you only see after rotating: windows onto the street (or a plain garage wall)
+      if (st.floor === 'concrete') {
+        ctx.fillStyle = 'rgba(0,0,0,0.08)';
+        for (let u = 0; u < W; u += 18) ctx.fillRect(u, 0, 1, H - 30);
+        wallAt(side === 'east' ? 1 : n - 3, () => { roundRect(ctx, 0, -86, WALL_PX * 1.4, 26, 3, '#6c757d'); ctx.fillStyle = '#e9ecef'; ctx.font = 'bold 9px Fredoka, sans-serif'; ctx.fillText('NO PARKING', 8, -69); });
+      } else {
+        for (let wy = 1; wy + 1.6 < n - 0.5; wy += 3) paintWindow(ctx, wy * WALL_PX, (wy + 1.6) * WALL_PX, H, t, st, wy + (side === 'east' ? 7 : 3));
+      }
+      tex.needsUpdate = true;
+      continue;
+    }
     if (side === 'left') {
       if (st.floor === 'concrete') {
         const u0 = at(n - 0.4), u1 = at(1.2);
@@ -885,7 +905,7 @@ function syncPeople(t) {
   for (const a of [...Game.customers, ...Game.barbers]) {
     alive.add(a.id);
     let g = R3.people.get(a.id);
-    if (!g) { g = buildPerson(a); R3.people.set(a.id, g); R3.scene.add(g); }
+    if (!g) { g = buildPerson(a); R3.people.set(a.id, g); R3.world.add(g); }
     const ud = g.userData;
     const hairKey = `${a.groomed}|${a.hairStyle}|${a.hair}|${a.beard}`;
     if (hairKey !== ud.hairKey) {
@@ -953,7 +973,7 @@ function syncPeople(t) {
     const look = a.working ? 0 : Math.sin(t * 0.7 + a.id) * 0.012;
     ud.eyes.forEach(e => { e.pupil.position.x = e.s * 0.075 + look; });
   }
-  for (const [id, g] of R3.people) if (!alive.has(id)) { disposeGroup(g); R3.scene.remove(g); R3.people.delete(id); }
+  for (const [id, g] of R3.people) if (!alive.has(id)) { disposeGroup(g); R3.world.remove(g); R3.people.delete(id); }
 }
 
 // ---------- items, piles, coins, highlights ----------
@@ -964,15 +984,15 @@ function syncItems(t) {
     alive.add(it.id);
     let o = R3.items.get(it.id);
     if (!o || o.type !== it.type) {
-      if (o) { disposeGroup(o.group); R3.scene.remove(o.group); }
+      if (o) { disposeGroup(o.group); R3.world.remove(o.group); }
       o = { type: it.type, group: buildItemModel(it.type) };
       R3.items.set(it.id, o);
-      R3.scene.add(o.group);
+      R3.world.add(o.group);
     }
     o.group.position.set(it.x, 0, it.y);
     if (o.group.userData.tick) o.group.userData.tick(t);
   }
-  for (const [id, o] of R3.items) if (!alive.has(id)) { disposeGroup(o.group); R3.scene.remove(o.group); R3.items.delete(id); }
+  for (const [id, o] of R3.items) if (!alive.has(id)) { disposeGroup(o.group); R3.world.remove(o.group); R3.items.delete(id); }
 }
 
 function syncPiles() {
@@ -982,7 +1002,7 @@ function syncPiles() {
     alive.add(key);
     let o = R3.piles.get(key);
     if (!o || o.amount !== p.amount) {
-      if (o) { disposeGroup(o.group); R3.scene.remove(o.group); }
+      if (o) { disposeGroup(o.group); R3.world.remove(o.group); }
       const g = new THREE.Group();
       const m = mat(p.color);
       const n = 8 + p.amount * 10;
@@ -997,10 +1017,10 @@ function syncPiles() {
       g.position.set(p.x, 0, p.y);
       o = { amount: p.amount, group: g };
       R3.piles.set(key, o);
-      R3.scene.add(g);
+      R3.world.add(g);
     }
   }
-  for (const [k, o] of R3.piles) if (!alive.has(k)) { disposeGroup(o.group); R3.scene.remove(o.group); R3.piles.delete(k); }
+  for (const [k, o] of R3.piles) if (!alive.has(k)) { disposeGroup(o.group); R3.world.remove(o.group); R3.piles.delete(k); }
 }
 
 let _coinGeo = null, _coinMat = null;
@@ -1019,12 +1039,12 @@ function syncDrops(t) {
   for (const d of Game.drops) {
     alive.add(d);
     let m = R3.drops.get(d);
-    if (!m) { m = mesh(_coinGeo, _coinMat); m.rotation.x = Math.PI / 2; R3.drops.set(d, m); R3.scene.add(m); }
+    if (!m) { m = mesh(_coinGeo, _coinMat); m.rotation.x = Math.PI / 2; R3.drops.set(d, m); R3.world.add(m); }
     m.position.set(d.x, 0.3 + Math.abs(Math.sin(t * 4 + d.seed * 6)) * 0.12, d.y);
     m.rotation.z = t * 3 + d.seed * 10;
     m.visible = !(d.life < 12 && Math.floor(t * 8) % 2);
   }
-  for (const [d, m] of R3.drops) if (!alive.has(d)) { R3.scene.remove(m); R3.drops.delete(d); }
+  for (const [d, m] of R3.drops) if (!alive.has(d)) { R3.world.remove(m); R3.drops.delete(d); }
 }
 
 let _ring = null;
@@ -1105,12 +1125,42 @@ function updateLighting(t) {
   R3.lamps.forEach((L, i) => { L.intensity = lampK * (1 + Math.sin(t * 7 + i * 3) * 0.02); });
 }
 
+// Cut away the walls between the camera and the room
+function updateWalls() {
+  const c = Math.cos(VIEW.angle), s = Math.sin(VIEW.angle);
+  for (const w of R3.wallParts || []) {
+    const [nx, nz] = w.normal;
+    const dot = (c * nx + s * nz) + (-s * nx + c * nz);      // outward normal · direction to the camera
+    const target = dot > 0.15 ? 0.12 : 1;
+    w.h += (target - w.h) * 0.25;
+    w.box.scale.y = w.h;
+    w.box.position.y = WALL_UNITS * w.h / 2;
+    w.plane.visible = w.h > 0.9;
+  }
+}
+
+function rotateView(dir) {
+  if (!R3.active) return;
+  VIEW.target += dir * Math.PI / 2;
+  sfx('select');
+}
+
 // ---------- frame ----------
 
 function renderR3() {
   if (!R3.active) return;
   const t = Game.t;
+  const n = gridSize();
+  VIEW.cx = VIEW.cy = n / 2;
+  VIEW.angle += (VIEW.target - VIEW.angle) * 0.18;
+  if (Math.abs(VIEW.target - VIEW.angle) < 0.001) VIEW.angle = VIEW.target;
+  // keep angles small after full turns
+  if (VIEW.angle === VIEW.target && Math.abs(VIEW.angle) >= Math.PI * 2) VIEW.angle = VIEW.target = VIEW.angle % (Math.PI * 2);
+  R3.world.rotation.y = VIEW.angle;
+  const ca = Math.cos(VIEW.angle), sa = Math.sin(VIEW.angle);
+  R3.world.position.set(n / 2 - (ca * n / 2 + sa * n / 2), 0, n / 2 - (-sa * n / 2 + ca * n / 2));
   buildRoom();
+  updateWalls();
   if (t - R3.lastPaint > 0.25 || R3.lastPaint < 0) { paintWalls(t); R3.lastPaint = t; }
   syncItems(t);
   syncPeople(t);

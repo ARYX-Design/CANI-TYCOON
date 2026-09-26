@@ -53,7 +53,8 @@ You can also serve the folder, for example with `npx serve .`.
 
 Each day runs from 09:00 to 19:00. Wages are paid at closing time; everything else comes as bills. The game autosaves to `localStorage`.
 
-**Controls:** drag to pan, scroll or pinch to zoom, tap or click to place. `Space` pauses, `1`–`3` set the speed,
+**Controls:** drag to pan, scroll or pinch to zoom, ⟲ ⟳ buttons or `Q` / `E` to rotate the 3D view in 90° steps
+(the walls facing the camera drop to low stubs), tap or click to place. `Space` pauses, `1`–`3` set the speed,
 `B` opens Build, `Esc` cancels. Right-click also cancels the build tool.
 
 ## Real rewards (coins → coupons)
@@ -79,6 +80,26 @@ STAFF_PIN=4821 npm start          # or: STAFF_PIN=4821 node server/server.js
 | `DATA_DIR` | `server/data` | Where `db.json` (players, balances, coupons) is stored. Back this folder up. |
 | `TZ` | server's | Time zone for "per day" limits, e.g. `Europe/Ljubljana`. |
 | `ALLOWED_ORIGIN` | – | Only if the game is hosted on a different domain than the server. |
+| `RESEND_API_KEY`, `MAIL_FROM` | – | Send sign-in codes by **email** through [Resend](https://resend.com). `MAIL_FROM` like `CANI Barber <codes@yourdomain.com>` (a domain verified in Resend). |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` | – | Send sign-in codes by **SMS** through [Twilio](https://www.twilio.com). `TWILIO_FROM` is your Twilio number, e.g. `+15551234567`. |
+| `AUTH_DEV` | – | `1` for testing only: codes aren't sent, the game shows them on screen. Never use in production. |
+
+### Phone / email sign-in
+
+Anyone can play and earn coins without an account, but getting a real coupon requires signing in with a
+**phone number or email**. The player types it in, gets a 6-digit code (valid 10 minutes, 5 tries), and is signed in.
+
+- Signing in the first time turns that device's progress into the account.
+- Signing in on another phone with the same number or email opens the same account, coins and coupons.
+  Coins earned on that phone before signing in are added, up to the day's cap.
+- The daily coin cap and reward limits are per account, so farming coins now needs a separate phone number or
+  email for each account.
+- Codes are limited to 3 per phone/email per 15 minutes and 10 per network per hour.
+- Phone numbers must include the country code (`+386 40 123 456` or `00386 40 123 456`).
+- The coupon desk shows whose coupon it is, masked (`+386 ••• 456`, `a•••@gmail.com`).
+
+Configure email (Resend), SMS (Twilio) or both. With neither configured, the sign-in screen tells players
+it isn't set up yet.
 
 The rewards menu (names, prices in coins, how long a coupon is valid, how often a player can get it)
 is in `server/rewards.json`. Restart the server after editing it.
@@ -103,8 +124,8 @@ phone or tablet. Scanning a coupon's QR code with the phone camera opens the cou
   coin reports as untrusted: it caps coins per player per day (`DAILY_COIN_CAP`), per request and per few seconds,
   and caps each reward per 30 days. Set reward prices with that in mind (at 40 coins/day a free coffee takes at
   least 2 days, a free haircut at least 13).
-- A player is one browser/device. Someone could create several players on different devices; new players are
-  limited to 5 per hour per network. For stricter control, add phone-number or email sign-in later.
+- Coupons need a verified phone number or email, and limits are per account. Someone with several numbers or
+  email addresses could still make several accounts; keep reward prices sensible.
 - The preview link on claude.ai can't reach a server, so exchanging coins is switched off there.
 
 ## Code layout

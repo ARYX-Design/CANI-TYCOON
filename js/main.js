@@ -47,6 +47,8 @@
     if (e.key === ' ') { Game.paused = !Game.paused; e.preventDefault(); }
     if (['1', '2', '3'].includes(e.key)) { Game.paused = false; Game.speed = +e.key; }
     if (e.key === 'b') openPanel('build');
+    if (e.key === 'q' || e.key === 'Q') rotateView(-1);
+    if (e.key === 'e' || e.key === 'E') rotateView(1);
     updateHUD(true);
   });
 
@@ -57,6 +59,7 @@
   // audio may only start after a user gesture
   window.addEventListener('pointerdown', unlockAudio, { once: true });
   window.addEventListener('keydown', unlockAudio, { once: true });
+  $('#rotateBtns').addEventListener('click', e => { const b = e.target.closest('[data-rot]'); if (b) rotateView(+b.dataset.rot); });
   $('#hudCoins').addEventListener('click', () => openPanel('rewards'));
   $('#musicBtn').addEventListener('click', () => { unlockAudio(); setMusic(!Sound.musicOn); updateHUD(true); });
 

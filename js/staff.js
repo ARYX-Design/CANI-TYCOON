@@ -53,7 +53,7 @@ function renderResult(c, err) {
       <div class="big-status">${status}</div>
       <div class="reward">${c.icon} ${c.name}</div>
       <div class="meta">${c.desc || ''}</div>
-      <div class="meta mono">${c.code} · player ${c.player}</div>
+      <div class="meta mono">${c.code} · ${c.contact ? 'owner ' + c.contact : 'player ' + c.player}</div>
       <div class="meta">Issued ${when(c.createdAt)} · valid until ${when(c.expiresAt)}${c.usedAt ? ` · used ${when(c.usedAt)}` : ''}</div>
       ${c.status === 'active' ? '<button class="btn primary" id="useBtn">Mark as used</button>' : ''}
     </div>`;
