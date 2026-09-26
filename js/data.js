@@ -156,6 +156,7 @@ const NAMES = {
 const ORIGINS = {
   al: { flag: '🇦🇱', label: 'Albanian' },
   si: { flag: '🇸🇮', label: 'Slovenian' },
+  vip: { flag: '👑', label: 'VIP' },
 };
 
 // Short things people say, in their own language
@@ -184,6 +185,14 @@ const PHRASES = {
     chat: ['Malo krajše ob straneh, prosim.', 'Kot vedno, hvala.', 'A si gledal tekmo?', 'Danes je vroče, a ne?', 'Brado samo malo porežite.', 'Kaj pravite na vreme?', 'Ne prekratko, prosim!', 'A bo Dončić spet zmagal?'],
     barberChat: ['Ne premikaj se.', 'Bo lepo, boš videl!', 'Malo gela?', 'Kako pa služba?', 'Še malo, pa sva gotova.', 'Fade kot iz kataloga!'],
     pay: ['Koliko sem dolžan?', 'Lahko s kartico?', 'Izvolite, hvala!', 'Drobiž imam, samo trenutek.'],
+  },
+  // xardiig, the VIP guest, mixes both languages
+  vip: {
+    greet: ['Živjo ekipa! 👑', 'Tungjatjeta, vëllezër!', 'Kje je moj stol?', 'xardiig je tu!'],
+    chat: ['Kot vedno, brate.', 'Fade si perherë!', 'Danes snemam za Instagram!', 'Follow @xardiig 😉'],
+    happy: ['Top, hvala! 👑', 'Faleminderit, mjeshtër!', 'Perfekt, kot vedno!'],
+    ok: ['Hvala, se vidimo!'],
+    pay: ['Izvolite, obdržite drobiž!', 'Urdhëro, pa kusur!'],
   },
 };
 

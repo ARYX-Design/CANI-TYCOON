@@ -477,9 +477,9 @@ const Renderer = {
       }
     }
     for (const c of Game.customers) {
-      if (c !== hovered && c !== Game.selected) continue;
+      if (!c.vip && c !== hovered && c !== Game.selected) continue;
       const p = isoK(c.x, c.y, (c.sitting ? 17 : 14) + 50);
-      nameTag(ctx, `${ORIGINS[c.origin].flag} ${c.name}`, p.x, p.y - 10, '#fff');
+      nameTag(ctx, `${ORIGINS[c.origin].flag} ${c.name}`, p.x, p.y - 10, c.vip ? '#f1c453' : '#fff');
     }
     for (const a of [...Game.customers, ...Game.barbers]) {
       if (!a.say || a.say.delay > 0 || (a.alpha ?? 1) < 0.5) continue;

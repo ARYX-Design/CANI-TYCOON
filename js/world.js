@@ -328,7 +328,7 @@ function sellItem(item) {
 
 function randomPerson() {
   const origin = Math.random() < SLOVENIAN_SHARE ? 'si' : 'al';
-  const female = Math.random() < 0.42;
+  const female = Math.random() < 0.3; // more boys than girls
   const hairStyle = pick(female ? HAIR_STYLES_F : HAIR_STYLES_M);
   return {
     origin, female,
@@ -581,6 +581,73 @@ function spawnCustomer() {
   }
 }
 
+// ---------- VIP guest: xardiig himself ----------
+// Some days xardiig drops by. He never waits: he walks straight to a free chair (or takes the very next one),
+// is served first, pays at the chair and leaves a big tip plus Cani Coins.
+const VIP = { name: 'xardiig', chance: 0.35, priceMult: 3, coins: 10 };
+
+function planVip(s) {
+  s.today.vipAt = s.day >= 2 && Math.random() < VIP.chance ? Math.round(rand(11 * 60, 16 * 60)) : 0;
+}
+
+function vipService() {
+  const list = availableServices().filter(sv => sv.station === 'chair');
+  return list.find(sv => sv.id === 'vip') || list.sort((a, b) => b.price - a.price)[0] || null;
+}
+
+function spawnVip() {
+  const service = vipService();
+  if (!service || Game.customers.some(c => c.vip)) return null;
+  const d = doorTile();
+  const c = {
+    id: Game.uid++, x: d.x + 0.5, y: -0.25, path: [], speed: 2.1, state: 'enter',
+    service, patience: 999, maxPatience: 999, alpha: 0,
+    origin: 'vip', female: false, name: VIP.name, surname: '', vip: true,
+    skin: '#d49a6a', hair: '#1c1410', hairStyle: 1,
+    shirt: '#141414', pants: '#141414', shoes: '#e9ecef', stripes: false, dress: false,
+    glasses: true, shades: true, chain: true, watch: true, earrings: false, beard: true,
+    capeColor: '#b8860b', groomed: false, dir: -1, mood: 'happy',
+    seat: null, station: null, cutBy: null,
+  };
+  Game.customers.push(c);
+  say(c, 'greet', 0.4);
+  let pre = [];
+  if (useStreet()) {
+    const r = arrivalRoute();
+    [c.x, c.y] = r.start;
+    c.outside = true;
+    pre = r.pts;
+  }
+  c.path = [...pre, { x: d.x, y: d.y }];
+  sfx('door');
+  sfx('fanfare');
+  toast(`👑 VIP alert! ${VIP.name} is here – he goes straight to a chair, no waiting!`, 4000, 'hint');
+  return c;
+}
+
+const waitingVip = () => Game.customers.find(c => c.vip && (c.state === 'enter' || c.state === 'waiting'));
+
+// Seat the VIP the moment he is inside and a chair is free (no tapping needed)
+function vipSeat() {
+  const c = waitingVip();
+  if (!c || c.outside) return;
+  const st = nearestFreeStation(c);
+  if (st && seatAt(c, st).ok) say(c, 'chat', 0.3);
+}
+
+function vipPays(c) {
+  c.bill.price = Math.round(c.bill.price * VIP.priceMult);
+  c.bill.tip = Math.max(c.bill.tip * 2, Math.round(c.bill.price * 0.3));
+  c.sat = 1;
+  pay(c, 1);
+  releaseStation(c);
+  sendHome(c);
+  addCoins(VIP.coins);
+  const p = iso(c.x, c.y, 80);
+  addFloater(p.x, p.y, `👑 +⭐${VIP.coins}`, '#f1c453', 2.2);
+  toast(`👑 ${VIP.name} loved it! Big tip and +${VIP.coins} Cani Coins`, 3500);
+}
+
 function loseCustomer(c, penalty, text) {
   const s = Game.state;
   s.rep = clamp(s.rep - penalty, 0, 5);
@@ -644,6 +711,7 @@ function update(dtReal) {
   updateDrops(dtMin);
 
   // spawning
+  if (s.today.vipAt && s.time >= s.today.vipAt) { s.today.vipAt = 0; spawnVip(); }
   if (s.time < CLOSE_TIME - 20) {
     Game.spawnAcc += spawnRatePerHour() / 60 * dtMin;
     while (Game.spawnAcc >= 1) {
@@ -653,6 +721,7 @@ function update(dtReal) {
     }
   }
 
+  vipSeat();
   if (hasHelper('receptionist')) autoSeat();
   else if (hasHelper('initiative')) barbersCallNext();
   assignBarbers();
@@ -727,6 +796,8 @@ function seatAt(c, st) {
   }
   if (!stationWorks(st)) return { ok: false, reason: '💧 No water! Pay the water bill first' };
   if (st.reservedBy) return { ok: false, reason: 'That station is taken' };
+  const vip = !c.vip && waitingVip();
+  if (vip && vip.service.station === c.service.station) return { ok: false, reason: `👑 ${vip.name} is next – the VIP never waits!` };
   const { t: from, prefix } = startTile(c);
   const path = findPath(from.x, from.y, st.x, st.y);
   if (!path) return { ok: false, reason: "Can't reach that station" };
@@ -744,6 +815,7 @@ function seatAt(c, st) {
 // Pair customers who sit at a station with the nearest free barber
 function assignBarbers() {
   const needy = Game.customers.filter(c => (c.state === 'toStation' || c.state === 'atStation') && !c.cutBy);
+  needy.sort((a, b) => (b.vip ? 1 : 0) - (a.vip ? 1 : 0));
   for (const c of needy) {
     const st = c.station;
     const barbers = idleBarbers().sort((a, b) => (Math.abs(a.x - st.x) + Math.abs(a.y - st.y)) - (Math.abs(b.x - st.x) + Math.abs(b.y - st.y)));
@@ -757,7 +829,7 @@ function assignBarbers() {
       b.job = { customer: c, station: st, spot };
       b.state = 'toStation';
       b.path = [...bs.prefix, ...bp];
-      if (Math.random() < 0.35) say(b, 'next');
+      if (Math.random() < 0.35) say(b, 'next', 0, c.origin);
       break;
     }
   }
@@ -790,7 +862,7 @@ function barbersCallNext() {
     const st = stations[0];
     if (st && seatAt(c, st).ok) {
       free--;
-      if (Math.random() < 0.5) say(b, 'next');
+      if (Math.random() < 0.5) say(b, 'next', 0, c.origin);
     }
   }
 }
@@ -818,6 +890,7 @@ function callNextTo(st) {
 
 function sendToRegister(c, reg) {
   if (c.state !== 'done') return { ok: false, reason: `${c.name} isn't ready to pay` };
+  if (c.vip) { vipPays(c); return { ok: true }; }
   const spot = registerSpot(c, reg);
   if (!spot) return { ok: false, reason: "Can't reach that register" };
   releaseStation(c);
@@ -860,6 +933,7 @@ function ringUp(reg) {
 
 function collectAtChair(c) {
   if (c.state !== 'done') return { ok: false };
+  if (c.vip) { vipPays(c); return { ok: true }; }
   pay(c, c.payWait < 12 ? 1.15 : 1);
   releaseStation(c);
   sendHome(c);
@@ -1023,13 +1097,14 @@ function updateCustomer(c, dt, dtMin) {
         c.chatT = (c.chatT === undefined ? rand(2, 4) : c.chatT) - dt;
         if (c.chatT <= 0) {
           c.chatT = rand(6, 11);
-          if (Math.random() < 0.5) say(c, 'chat'); else if (c.cutBy) say(c.cutBy, 'barberChat');
+          if (Math.random() < 0.5) say(c, 'chat'); else if (c.cutBy) say(c.cutBy, 'barberChat', 0, c.origin);
         }
         if (c.progress >= 1) finishService(c);
       }
       break;
     case 'done':
       c.payWait += dtMin;
+      if (c.vip) { if (c.payWait > 2) vipPays(c); break; }
       if (hasHelper('cashier')) {
         if (registers().length) { if (c.payWait > 3) sendToRegister(c); }
         else if (c.payWait > 4) collectAtChair(c);
@@ -1103,6 +1178,7 @@ function leaveWithoutTip(c) {
 }
 
 function patienceTick(c, dtMin) {
+  if (c.vip) return; // the VIP never waits, so never gets angry
   c.patience -= dtMin;
   c.mood = c.patience / c.maxPatience < 0.3 ? 'angry' : 'neutral';
   if (c.patience <= 0) {
@@ -1212,10 +1288,12 @@ function updateBarber(b, dt) {
 
 // ---------- effects ----------
 
-// Speech bubble in the speaker's own language
-function say(agent, kind, delay = 0) {
-  const origin = agent.origin || (agent.data && agent.data.origin);
-  const lang = origin && PHRASES[origin] ? origin : (Math.random() < SLOVENIAN_SHARE ? 'si' : 'al');
+// Speech bubble in the speaker's own language; a barber talking to a customer uses the customer's language (`lang`)
+function say(agent, kind, delay = 0, lang) {
+  if (!(lang && PHRASES[lang] && PHRASES[lang][kind])) {
+    const origin = agent.origin || (agent.data && agent.data.origin);
+    lang = origin && PHRASES[origin] ? origin : (Math.random() < SLOVENIAN_SHARE ? 'si' : 'al');
+  }
   if (!PHRASES[lang][kind]) return;
   agent.say = { text: pick(PHRASES[lang][kind]), life: 2.6 + delay, delay };
 }
@@ -1383,6 +1461,7 @@ function startDay() {
   Game.spawnAcc = 0;
   const s = Game.state;
   newGoals(s);
+  planVip(s);
   const bonus = 3 + Math.min(s.stage, 4);
   addCoins(bonus);
   toast(`${s.dayInfo.icon} ${s.dayInfo.text}`, 4000, s.dayInfo.kind === 'busy' ? 'hint' : '');

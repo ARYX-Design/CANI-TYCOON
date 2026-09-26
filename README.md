@@ -56,7 +56,11 @@ You can also serve the folder, for example with `npx serve .`.
   Decor raises *appeal*, which brings more customers and makes them happier. Some decor also makes customers more patient.
 - **People**: about 60% of customers and barbers are Slovenian 🇸🇮 and 40% Albanian 🇦🇱, with names, and they chat in their own language
   in speech bubbles ("Dober dan!", "Malo krajše ob straneh, prosim.", "Koliko sem dolžan?", "Mirëdita!"), including
-  small talk in the chair and at the register. Tap or click anyone to see who they are and what they're doing.
+  small talk in the chair and at the register. A barber always answers a customer in the customer's language.
+  About 70% of customers are men and 30% women. Tap or click anyone to see who they are and what they're doing.
+- 👑 **VIP guest – xardiig**: on some days from day 2 xardiig walks in. He never waits: he goes straight to a free chair,
+  or the very next one that opens, and barbers serve him first. He pays at the chair (3× price, a big tip) and
+  gives +10 Cani Coins.
 - **Staff**: hire barbers, each with their own skill, speed and daily wage. New candidates show up every morning.
   Rename any barber, Cani included, with the ✏️ button in the Staff panel or the Rename button on their card.
 - **Services**: new services unlock as you grow. Some need a Wash Sink or Color Station. Pick a Budget, Normal or Premium price level.

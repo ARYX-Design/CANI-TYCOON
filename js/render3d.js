@@ -711,6 +711,15 @@ function buildPerson(p) {
   shoulders.rotation.z = Math.PI / 2;
   shoulders.position.y = HIP + 0.4;
   body.add(torso, chest, shoulders);
+  if (p.chain) {
+    // the VIP's gold chain
+    const chain = mesh(new THREE.TorusGeometry(0.1, 0.014, 6, 18, Math.PI), mat('#f1c453'), false);
+    chain.rotation.z = Math.PI;
+    chain.position.set(0, HIP + 0.44, 0.12);
+    const pendant = mesh(new THREE.BoxGeometry(0.04, 0.05, 0.015), mat('#f1c453'), false);
+    pendant.position.set(0, HIP + 0.33, 0.125);
+    body.add(chain, pendant);
+  }
   if (p.stripes) for (let k = 0; k < 3; k++) {
     const s = mesh(new THREE.BoxGeometry(tw + 0.005, 0.03, 0.215), mat('#ffffff'), false);
     s.position.y = HIP + 0.15 + k * 0.1;
@@ -832,6 +841,14 @@ function buildPerson(p) {
     const bridge = mesh(new THREE.BoxGeometry(0.06, 0.012, 0.01), fm, false);
     bridge.position.set(0, 0.035, 0.172);
     head.add(bridge);
+    if (p.shades) {
+      const lm = mat('#0b0b0f');
+      for (const s of [-1, 1]) {
+        const lens = mesh(new THREE.CircleGeometry(0.045, 12), lm, false);
+        lens.position.set(s * 0.075, 0.03, 0.176);
+        head.add(lens);
+      }
+    }
   }
   body.add(head);
 
