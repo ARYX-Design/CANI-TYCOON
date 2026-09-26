@@ -159,8 +159,8 @@ const ORIGINS = {
 };
 
 // Short things people say, in their own language
-// 70% of the people in town are Slovenian, the rest Albanian
-const SLOVENIAN_SHARE = 0.7;
+// 60% of the people in town are Slovenian, 40% Albanian
+const SLOVENIAN_SHARE = 0.6;
 
 const PHRASES = {
   al: {
