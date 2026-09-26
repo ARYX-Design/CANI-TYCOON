@@ -57,7 +57,9 @@ const Renderer = {
     this.drawFloor(ctx, st, n);
     this.drawWalls(ctx, st, n, t);
     this.drawWallDecor(ctx, st, n, t);
+    this.drawPiles(ctx);
     this.drawBuildHighlight(ctx);
+    this.drawTargets(ctx, t);
     this.drawSelection(ctx, t);
 
     // depth-sorted entities
@@ -75,6 +77,7 @@ const Renderer = {
     this.drawOverlays(ctx, t);
     ctx.restore();
     this.drawDaylight(ctx);
+    this.drawCoins(ctx);
   },
 
   drawBackground(ctx) {
@@ -313,6 +316,7 @@ const Renderer = {
 
   // wall lamps that glow warmer as the evening comes
   drawLights(ctx, st, n, t) {
+    if (utilityOff('power')) return;
     const hour = Game.state.time / 60;
     const k = 0.35 + clamp((hour - 16) / 3, 0, 1) * 0.55;
     const lamps = [];
@@ -414,6 +418,29 @@ const Renderer = {
 
   drawOverlays(ctx, t) {
     const hovered = this.hoverAgent;
+    const bounce = Math.abs(Math.sin(t * 5)) * 4;
+    for (const it of this.targetArrows || []) {
+      const p = iso(it.x + 0.5, it.y + 0.5, 62 + bounce);
+      ctx.font = '16px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('⬇️', p.x, p.y);
+    }
+    this.targetArrows = [];
+    for (const c of Game.customers) {
+      if (c.alpha < 0.5) continue;
+      if (customerNeedsSeat(c) && !hasHelper('receptionist') && c !== Game.selected) {
+        const p = iso(c.x, c.y, (c.sitting ? 17 : 14) + 70 + bounce);
+        tapBadge(ctx, '👆', p.x, p.y, '#50dc78');
+      } else if (c.state === 'done' && !hasHelper('cashier')) {
+        const p = iso(c.x, c.y, 17 + 66 + bounce);
+        tapBadge(ctx, '💵', p.x, p.y, c.payWait > 50 ? '#e63946' : '#f1c453');
+      }
+    }
+    for (const r of registers()) {
+      const q = Game.customers.filter(c => c.state === 'atRegister' && c.register === r);
+      if (!q.length || hasHelper('cashier')) continue;
+      const p = iso(r.x + 0.5, r.y + 0.5, 70 + bounce);
+      tapBadge(ctx, `🔔${q.length > 1 ? '×' + q.length : ''}`, p.x, p.y, '#f1c453');
+    }
     for (const c of Game.customers) {
       if ((c.state === 'waiting' || c.state === 'enter') && c.alpha > 0.5) {
         const p = iso(c.x, c.y, (c.sitting ? 14 : 0) + 52);
@@ -429,6 +456,7 @@ const Renderer = {
         roundRect(ctx, p.x - 17, p.y - 3, 34 * clamp(c.progress, 0, 1), 5, 2.5, '#f1c453');
         ctx.font = 'bold 8px Fredoka, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
         ctx.fillText(c.service.name, p.x, p.y - 7);
+        if (c.taps === undefined && Game.state.day <= 2) { ctx.fillStyle = '#ffe066'; ctx.fillText('tap to speed up!', p.x, p.y + 13); }
       }
     }
     for (const b of Game.barbers) {
@@ -463,12 +491,95 @@ const Renderer = {
 
   drawDaylight(ctx) {
     const hour = Game.state.time / 60;
-    const k = clamp((hour - 17) / 3, 0, 1);
+    let k = clamp((hour - 17) / 3, 0, 1) * 0.28;
+    if (utilityOff('power')) k = Math.max(k, 0.42 + Math.sin(Game.t * 9) * 0.02);
     if (k <= 0) return;
-    ctx.fillStyle = `rgba(40,20,80,${k * 0.28})`;
+    ctx.fillStyle = `rgba(20,14,50,${k})`;
     ctx.fillRect(0, 0, this.w, this.h);
   },
+
+  // coins flying from the floor to the money counter
+  drawCoins(ctx) {
+    if (!Game.coins.length) return;
+    const el = document.getElementById('hudMoney');
+    const r = el.getBoundingClientRect();
+    const tx = r.left + r.width / 2, ty = r.top + r.height / 2;
+    const dt = 1 / 60;
+    for (const c of Game.coins) {
+      c.delay -= dt;
+      if (c.delay > 0) continue;
+      c.t += dt * 1.6;
+      const sx = c.wx * this.cam.zoom + this.w / 2 + this.cam.x + c.jitter;
+      const sy = c.wy * this.cam.zoom + this.h / 2 + this.cam.y;
+      const k = Math.min(1, c.t), e = k * k;
+      const x = sx + (tx - sx) * e;
+      const y = sy + (ty - sy) * e - Math.sin(k * Math.PI) * 60;
+      ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2);
+      ctx.fillStyle = '#f1c453'; ctx.fill();
+      ctx.strokeStyle = '#a07c1c'; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.fillStyle = '#a07c1c'; ctx.font = 'bold 7px Fredoka, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('$', x, y + 2.5);
+      if (k >= 1 && !c.done) {
+        c.done = true;
+        sfx('coin');
+        el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
+      }
+    }
+    Game.coins = Game.coins.filter(c => !c.done);
+  },
+
+  drawPiles(ctx) {
+    for (const p of Game.piles) {
+      const c = iso(p.x + 0.5, p.y + 0.5);
+      const n = 6 + p.amount * 7;
+      ctx.strokeStyle = p.color; ctx.lineWidth = 1.3;
+      for (let i = 0; i < n; i++) {
+        const a = hash2(i + p.x * 13, p.y * 7 + i) * Math.PI * 2;
+        const r = hash2(i * 3 + p.y, p.x + i) * (6 + p.amount * 3);
+        const x = c.x + Math.cos(a) * r * 1.6, y = c.y + Math.sin(a) * r * 0.8;
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a + 1) * 3, y + Math.sin(a + 1) * 1.5); ctx.stroke();
+      }
+    }
+  },
+
+  // highlight where the selected customer can go
+  drawTargets(ctx, t) {
+    const sel = Game.selected;
+    if (!sel || sel.barber) return;
+    let targets = [];
+    if (sel.state === 'waiting' || sel.state === 'enter') targets = freeStation(sel.service.station);
+    else if (sel.state === 'done') targets = registers();
+    const pulse = 0.35 + Math.sin(t * 6) * 0.15;
+    for (const it of targets) {
+      tileDiamond(ctx, it.x, it.y, `rgba(80,220,120,${pulse})`, '#50dc78');
+    }
+    this.targetArrows = targets;
+  },
+
+  // the frontmost furniture under a screen point (includes its height, not just the floor tile)
+  pickItem(sx, sy) {
+    const w = this.toWorld(sx, sy);
+    let best = null;
+    for (const it of Game.state.items) {
+      const c = iso(it.x + 0.5, it.y + 0.5);
+      const dx = Math.abs(w.x - c.x) / (TW / 2), dy = (w.y - c.y) / (TH / 2);
+      const inBase = dx + Math.abs(dy) <= 1;
+      const inBody = dx <= 0.8 && w.y < c.y && w.y > c.y - 55;
+      if ((inBase || inBody) && (!best || it.x + it.y > best.x + best.y)) best = it;
+    }
+    return best;
+  },
 };
+
+function tapBadge(ctx, text, x, y, ring) {
+  ctx.save();
+  ctx.font = '13px sans-serif'; ctx.textAlign = 'center';
+  const w = Math.max(24, ctx.measureText(text).width + 12);
+  roundRect(ctx, x - w / 2, y - 13, w, 22, 11, 'rgba(15,16,30,0.85)');
+  ctx.strokeStyle = ring; ctx.lineWidth = 2; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x - 4, y + 9); ctx.lineTo(x, y + 14); ctx.lineTo(x + 4, y + 9); ctx.fillStyle = 'rgba(15,16,30,0.85)'; ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.fillText(text, x, y + 3);
+  ctx.restore();
+}
 
 function nameTag(ctx, text, x, y, color) {
   ctx.font = '600 8.5px Fredoka, sans-serif';

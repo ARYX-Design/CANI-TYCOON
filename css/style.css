@@ -61,7 +61,7 @@ button:disabled { cursor: not-allowed; }
 #speedBtns { display: flex; background: rgba(0, 0, 0, 0.45); border-radius: 999px; padding: 3px; border: 1px solid var(--line); }
 #speedBtns button { width: 34px; height: 30px; border-radius: 999px; font-size: 14px; }
 #speedBtns button.active { background: var(--red); }
-#menuBtn { width: 38px; height: 38px; border-radius: 50%; background: rgba(0, 0, 0, 0.45); border: 1px solid var(--line); font-size: 18px; }
+#menuBtn, .round-btn { width: 38px; height: 38px; border-radius: 50%; background: rgba(0, 0, 0, 0.45); border: 1px solid var(--line); font-size: 18px; }
 
 .stars { position: relative; display: inline-block; color: rgba(255, 255, 255, 0.2); letter-spacing: 1px; font-size: 14px; }
 .stars.small { font-size: 12px; }
@@ -195,6 +195,7 @@ button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
   animation: pop 0.15s ease-out;
 }
 #inspect .btn { align-self: flex-start; }
+.insp-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .insp-close { position: absolute; right: 10px; top: 10px; width: 26px; height: 26px; border-radius: 50%; background: var(--card); font-size: 12px; }
 .insp-head { display: flex; gap: 10px; align-items: center; padding-right: 26px; }
 .insp-mood { font-size: 28px; }
@@ -203,6 +204,22 @@ button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .insp-row { font-size: 13px; color: #dcdaea; }
 .insp-bar { height: 7px; border-radius: 4px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
 .insp-bar span { display: block; height: 100%; width: 0; background: var(--gold); border-radius: 4px; transition: width 0.2s linear; }
+
+#toolbar button { position: relative; }
+.badge-count { position: absolute; top: 2px; right: 8px; min-width: 18px; height: 18px; border-radius: 9px; background: var(--gold); color: #2a2100; font-style: normal; font-size: 11px; font-weight: 700; display: grid; place-items: center; padding: 0 4px; }
+.badge-count[hidden] { display: none; }
+#toolbar button.alert { color: #ff8a8a; animation: alertPulse 1s infinite; }
+#toolbar button.alert .badge-count { background: var(--red); color: #fff; }
+@keyframes alertPulse { 50% { background: rgba(230, 57, 70, 0.25); } }
+.card.bill.overdue { border-color: var(--red); background: rgba(230, 57, 70, 0.12); }
+.card.bill.soon { border-color: rgba(241, 196, 83, 0.6); }
+.empty { text-align: center; padding: 30px 10px; line-height: 1.6; }
+.modal-card h3.sub { font-size: 14px; margin: 14px 0 6px; color: var(--gold); }
+.bill-list { display: grid; gap: 4px; }
+.bill-list div { display: flex; justify-content: space-between; gap: 10px; background: var(--card); border-radius: 8px; padding: 6px 10px; font-size: 13px; }
+.toast.hint { border-color: var(--gold); background: rgba(40, 34, 12, 0.95); }
+#hudMoney.bump { animation: bump 0.25s ease-out; }
+@keyframes bump { 50% { transform: scale(1.12); } }
 
 /* ---------- build hint ---------- */
 #buildHint {
@@ -253,6 +270,7 @@ button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
   #toolbar { left: 8px; right: 8px; transform: none; bottom: 8px; justify-content: space-between; border-radius: 16px; }
   #toolbar button { min-width: 0; flex: 1; padding: 6px 2px; font-size: 11px; }
   #toolbar button span { font-size: 20px; }
+  .badge-count { right: 2px; }
   #panel { left: 8px; right: 8px; width: auto; top: auto; bottom: 80px; max-height: 58vh; animation-name: slideUp; }
   @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } }
   #inspect { left: 8px; right: 8px; width: auto; bottom: 80px; }

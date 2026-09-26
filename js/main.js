@@ -10,7 +10,8 @@
   window.addEventListener('resize', () => Renderer.fitCamera());
 
   Game.listeners.push(ev => {
-    if (ev && ev.type === 'dayEnd') { setTool(null); showDaySummary(ev.summary); }
+    if (ev && ev.type === 'dayEnd') { setTool(null); Game.selected = null; musicMuffle(true); showDaySummary(ev.summary); }
+    if (ev === 'dayStart') musicMuffle(false);
     if (ev === 'items' || ev === 'expand') saveGame();
   });
 
@@ -51,6 +52,11 @@
   const pointers = new Map();
   let drag = null, pinch = null;
 
+  // audio may only start after a user gesture
+  window.addEventListener('pointerdown', unlockAudio, { once: true });
+  window.addEventListener('keydown', unlockAudio, { once: true });
+  $('#musicBtn').addEventListener('click', () => { unlockAudio(); setMusic(!Sound.musicOn); updateHUD(true); });
+
   canvas.addEventListener('pointerdown', e => {
     canvas.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -66,7 +72,9 @@
     if (e.pointerType === 'mouse' || pointers.size <= 1) {
       Renderer.hover = Renderer.tileAt(e.clientX, e.clientY);
       Renderer.hoverAgent = e.pointerType === 'mouse' && !UI.tool ? Renderer.pickAgent(e.clientX, e.clientY) : null;
-      canvas.style.cursor = Renderer.hoverAgent ? 'pointer' : '';
+      const hovItem = e.pointerType === 'mouse' && !UI.tool && !Renderer.hoverAgent ? Renderer.pickItem(e.clientX, e.clientY) : null;
+      const pile = Game.piles.some(p => p.x === Renderer.hover.x && p.y === Renderer.hover.y);
+      canvas.style.cursor = Renderer.hoverAgent || pile || (hovItem && (ITEMS[hovItem.type].station || ITEMS[hovItem.type].register)) ? 'pointer' : '';
     }
     if (!pointers.has(e.pointerId)) return;
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -91,9 +99,11 @@
       const tile = Renderer.tileAt(e.clientX, e.clientY);
       Renderer.hover = tile;
       if (UI.tool) toolClick(tile);
-      else {
-        Game.selected = Renderer.pickAgent(e.clientX, e.clientY);
-        if (!Game.selected && UI.panel && window.innerWidth < 760) closePanel();
+      else if (!Game.nightMode) {
+        const agent = Renderer.pickAgent(e.clientX, e.clientY);
+        const item = Renderer.pickItem(e.clientX, e.clientY);
+        handleWorldTap(agent, item, tile);
+        if (!Game.selected && !agent && !item && UI.panel && window.innerWidth < 760) closePanel();
         updateInspector();
       }
     }

@@ -7,6 +7,8 @@ const Game = {
   floaters: [],       // floating texts (+$20, emotes)
   particles: [],      // hair clippings
   sparkles: [],       // fresh-cut sparkles
+  coins: [],          // coins flying to the money counter
+  piles: [],          // hair on the floor
   selected: null,     // agent shown in the inspector
   speed: 1,
   paused: false,
@@ -51,6 +53,7 @@ function newState() {
   add('waitingChair', 0, 4);
   add('waitingChair', 0, 5);
   add('plant', 0, 0);
+  add('register', 4, 1);
   return s;
 }
 
@@ -64,7 +67,14 @@ function initWorld(state) {
   Game.floaters = [];
   Game.particles = [];
   Game.sparkles = [];
+  Game.coins = [];
+  Game.piles = [];
   Game.selected = null;
+  state.bills = state.bills || [];
+  state.hints = state.hints || {};
+  state.week = state.week || { revenue: 0 };
+  state.nextBillId = state.nextBillId || 1;
+  for (const k of Object.keys(UPGRADES)) if (state.upgrades[k] === undefined) state.upgrades[k] = 0;
   Game.barbers = [];
   // saves from before names had origins
   state.barbers.forEach(b => {
@@ -138,18 +148,21 @@ function reachableFromDoor(blocked) {
   return seen;
 }
 
+// electric decor stops counting during a power cut
+const itemPowered = i => !(ITEMS[i.type].electric && utilityOff('power'));
+
 function decorScore() {
-  return Game.state.items.reduce((s, i) => s + (ITEMS[i.type].decor || 0), 0);
+  return Game.state.items.reduce((s, i) => s + (itemPowered(i) ? ITEMS[i.type].decor || 0 : 0), 0);
 }
 
 function patienceBonus() {
-  const fromItems = Game.state.items.reduce((s, i) => s + (ITEMS[i.type].patience || 0), 0);
+  const fromItems = Game.state.items.reduce((s, i) => s + (itemPowered(i) ? ITEMS[i.type].patience || 0 : 0), 0);
   return Math.min(0.6, fromItems + Game.state.upgrades.loyalty * 0.1);
 }
 
 function availableServices() {
   const s = Game.state;
-  const stations = new Set(s.items.filter(i => ITEMS[i.type].station).map(i => ITEMS[i.type].station));
+  const stations = new Set(s.items.filter(i => ITEMS[i.type].station && stationWorks(i)).map(i => ITEMS[i.type].station));
   return SERVICES.filter(sv => sv.stage <= s.stage && stations.has(sv.station) && !s.disabledServices.includes(sv.id));
 }
 
@@ -195,7 +208,7 @@ function placeItem(type, x, y) {
 }
 
 function sellItem(item) {
-  if (item.reservedBy || item.occupant) return { ok: false, reason: 'In use right now' };
+  if (item.reservedBy || item.occupant || Game.customers.some(c => c.register === item && c.state !== 'leaving')) return { ok: false, reason: 'In use right now' };
   const s = Game.state;
   s.items = s.items.filter(i => i !== item);
   const refund = Math.floor(ITEMS[item.type].cost * 0.5);
@@ -322,10 +335,11 @@ function freeFloorTiles() {
 function buyUpgrade(key) {
   const s = Game.state, u = UPGRADES[key], lvl = s.upgrades[key];
   if (lvl >= u.costs.length) return { ok: false, reason: 'Maxed out' };
+  if ((u.stage || 0) > s.stage) return { ok: false, reason: `Unlocks at ${STAGES[u.stage].name}` };
   if (s.money < u.costs[lvl]) return { ok: false, reason: 'Not enough money' };
   s.money -= u.costs[lvl];
   s.upgrades[key]++;
-  toast(`${u.icon} ${u.name} upgraded to level ${s.upgrades[key]}!`);
+  toast(u.helper ? `${u.icon} ${u.name} hired! They'll handle that for you now.` : `${u.icon} ${u.name} upgraded to level ${s.upgrades[key]}!`);
   sfx('hire');
   return { ok: true };
 }
@@ -393,7 +407,7 @@ function spawnCustomer() {
     beard: !person.female && (service.id === 'beard' || service.id === 'shave' || Math.random() < 0.25),
     capeColor: pick(['#2b2d42', '#1d3557', '#6a040f', '#264653']),
     groomed: false, dir: -1, mood: 'neutral',
-    seat: null, station: null, barber: null,
+    seat: null, station: null, cutBy: null,
   };
   Game.customers.push(c);
   if (Math.random() < 0.55) say(c, 'greet', 0.4);
@@ -405,9 +419,16 @@ function spawnCustomer() {
     c.path = [{ x: d.x, y: d.y }, ...findPath(d.x, d.y, seat.x, seat.y)];
     return;
   }
-  // no seat: take a free station right away, or walk out disappointed
-  c.path = [{ x: d.x, y: d.y }];
-  if (!tryAssign(c)) {
+  // no seat: wait standing near the door (max 2), or walk out disappointed
+  const standing = Game.customers.filter(o => o.standing && (o.state === 'waiting' || o.state === 'enter')).length;
+  const spot = standing < 2 && freeFloorTiles()
+    .filter(t => !Game.customers.some(o => o !== c && Math.floor(o.x) === t.x && Math.floor(o.y) === t.y))
+    .sort((a, b) => (Math.abs(a.x - d.x) + a.y) - (Math.abs(b.x - d.x) + b.y))[0];
+  const spotPath = spot && findPath(d.x, d.y, spot.x, spot.y);
+  if (spotPath) {
+    c.standing = true;
+    c.path = [{ x: d.x, y: d.y }, ...spotPath];
+  } else {
     c.state = 'leaving';
     c.mood = 'sad';
     c.path = [{ x: d.x, y: d.y }, { px: d.x + 0.5, py: -0.3 }];
@@ -424,81 +445,6 @@ function loseCustomer(c, penalty, text) {
   s.stats.lost++;
   const p = iso(c.x, c.y, 60);
   addFloater(p.x, p.y, text, '#ff6b6b');
-}
-
-function freeStation(type) {
-  return Game.state.items.filter(i => ITEMS[i.type].station === type && !i.reservedBy);
-}
-
-function idleBarbers() {
-  return Game.barbers.filter(b => !b.job && b.alpha >= 1);
-}
-
-function tryAssign(c) {
-  const stations = freeStation(c.service.station);
-  const barbers = idleBarbers();
-  if (!stations.length || !barbers.length) return false;
-  const { t: from, prefix } = startTile(c);
-  // closest station to the customer
-  stations.sort((a, b) => (Math.abs(a.x - from.x) + Math.abs(a.y - from.y)) - (Math.abs(b.x - from.x) + Math.abs(b.y - from.y)));
-  for (const st of stations) {
-    const cPath = findPath(from.x, from.y, st.x, st.y);
-    if (!cPath) continue;
-    // closest barber that can reach a free standing spot
-    const byDist = barbers.slice().sort((a, b) => (Math.abs(a.x - st.x) + Math.abs(a.y - st.y)) - (Math.abs(b.x - st.x) + Math.abs(b.y - st.y)));
-    for (const b of byDist) {
-      const spot = standSpot(st, b);
-      if (!spot) continue;
-      const bs = startTile(b);
-      const bp = findPath(bs.t.x, bs.t.y, spot.x, spot.y);
-      if (!bp) continue;
-      const bPath = [...bs.prefix, ...bp];
-      // commit
-      if (c.seat) { c.seat.occupant = null; c.seat = null; }
-      st.reservedBy = c.id;
-      c.station = st;
-      c.barber = b;
-      c.state = 'toStation';
-      c.sitting = false;
-      c.path = [...prefix, ...cPath];
-      b.job = { customer: c, station: st, spot };
-      b.state = 'toStation';
-      b.path = bPath;
-      if (Math.random() < 0.35) say(b, 'next');
-      return true;
-    }
-  }
-  return false;
-}
-
-// Tile an agent paths from; agents still in the doorway (y < 0) first step onto the door tile
-function startTile(a) {
-  if (a.y < 0) { const d = doorTile(); return { t: d, prefix: [{ x: d.x, y: d.y }] }; }
-  return { t: tileOf(a), prefix: [] };
-}
-
-function standSpot(st, barber) {
-  const taken = new Set(Game.barbers.filter(b => b !== barber && b.job).map(b => `${b.job.spot.x},${b.job.spot.y}`));
-  const idleSpots = new Set(Game.barbers.filter(b => b !== barber && !b.job).map(b => `${Math.floor(b.x)},${Math.floor(b.y)}`));
-  const reach = reachableFromDoor();
-  const prefs = [[1, 0], [0, 1], [-1, 0], [0, -1]];
-  let fallback = null;
-  for (const [dx, dy] of prefs) {
-    const x = st.x + dx, y = st.y + dy;
-    if (!walkable(x, y) || !reach.has(y * 100 + x) || taken.has(`${x},${y}`)) continue;
-    if (idleSpots.has(`${x},${y}`)) { fallback = fallback || { x, y }; continue; }
-    return { x, y };
-  }
-  return fallback;
-}
-
-function assignJobs() {
-  const waiting = Game.customers.filter(c => c.state === 'waiting' || (c.state === 'enter' && c.alpha >= 1));
-  waiting.sort((a, b) => a.patience / a.maxPatience - b.patience / b.maxPatience);
-  for (const c of waiting) {
-    if (!idleBarbers().length) break;
-    tryAssign(c);
-  }
 }
 
 // ---------- movement ----------
@@ -551,30 +497,316 @@ function update(dtReal) {
 
   s.time += dtMin;
 
+  updateBills(dtMin);
+
   // spawning
   if (s.time < CLOSE_TIME - 20) {
     Game.spawnAcc += spawnRatePerHour() / 60 * dtMin;
     while (Game.spawnAcc >= 1) {
       Game.spawnAcc -= 1;
       spawnCustomer();
+      sfx('door');
     }
   }
 
-  assignJobs();
+  if (hasHelper('receptionist')) autoSeat();
+  assignBarbers();
+  if (hasHelper('cleaner') && Game.piles.length) {
+    Game.cleanT = (Game.cleanT || 0) + dtMin;
+    if (Game.cleanT > 25) { Game.cleanT = 0; sweep(Game.piles[0]); }
+  }
 
   for (const c of Game.customers.slice()) updateCustomer(c, dt, dtMin);
   for (const b of Game.barbers) updateBarber(b, dt, dtMin);
   updateParticles(dt);
 
-  // closing: force the last waiting customers out
-  if (s.time > CLOSE_TIME + 120) {
-    Game.customers.filter(c => c.state === 'waiting' || c.state === 'enter').forEach(c => {
-      if (c.seat) { c.seat.occupant = null; c.seat = null; }
-      sendHome(c); c.mood = 'sad';
+  // closing: send the last waiting customers home and settle open payments
+  if (s.time > CLOSE_TIME + 90) {
+    Game.customers.forEach(c => {
+      if (c.state === 'waiting' || c.state === 'enter') {
+        if (c.seat) { c.seat.occupant = null; c.seat = null; }
+        sendHome(c); c.mood = 'sad';
+      } else if (c.state === 'done' || c.state === 'atRegister') leaveWithoutTip(c);
     });
   }
   if (s.time >= CLOSE_TIME && Game.customers.length === 0) endDay();
 }
+
+function freeStation(type) {
+  return Game.state.items.filter(i => ITEMS[i.type].station === type && !i.reservedBy && stationWorks(i));
+}
+
+// Water-based stations stop working while the water bill is overdue
+function stationWorks(item) {
+  const st = ITEMS[item.type].station;
+  return !((st === 'sink' || st === 'color') && utilityOff('water'));
+}
+
+function idleBarbers() {
+  return Game.barbers.filter(b => !b.job && b.alpha >= 1);
+}
+
+const hasHelper = key => Game.state.upgrades[key] > 0;
+const registers = () => Game.state.items.filter(i => ITEMS[i.type].register);
+
+// Tile an agent paths from; agents still in the doorway (y < 0) first step onto the door tile
+function startTile(a) {
+  if (a.y < 0) { const d = doorTile(); return { t: d, prefix: [{ x: d.x, y: d.y }] }; }
+  return { t: tileOf(a), prefix: [] };
+}
+
+function standSpot(st, barber) {
+  const taken = new Set(Game.barbers.filter(b => b !== barber && b.job).map(b => `${b.job.spot.x},${b.job.spot.y}`));
+  const idleSpots = new Set(Game.barbers.filter(b => b !== barber && !b.job).map(b => `${Math.floor(b.x)},${Math.floor(b.y)}`));
+  const reach = reachableFromDoor();
+  const prefs = [[1, 0], [0, 1], [-1, 0], [0, -1]];
+  let fallback = null;
+  for (const [dx, dy] of prefs) {
+    const x = st.x + dx, y = st.y + dy;
+    if (!walkable(x, y) || !reach.has(y * 100 + x) || taken.has(`${x},${y}`)) continue;
+    if (idleSpots.has(`${x},${y}`)) { fallback = fallback || { x, y }; continue; }
+    return { x, y };
+  }
+  return fallback;
+}
+
+// ---------- directing customers (player taps) ----------
+
+// Send a waiting customer to a specific station. The next free barber follows on their own.
+function seatAt(c, st) {
+  if (!(c.state === 'waiting' || c.state === 'enter')) return { ok: false, reason: `${c.name} is busy` };
+  if (ITEMS[st.type].station !== c.service.station) {
+    const need = { chair: 'a barber chair', sink: 'a Wash Sink', color: 'a Color Station' }[c.service.station];
+    return { ok: false, reason: `${c.name} wants a ${c.service.name} – that needs ${need}` };
+  }
+  if (!stationWorks(st)) return { ok: false, reason: '💧 No water! Pay the water bill first' };
+  if (st.reservedBy) return { ok: false, reason: 'That station is taken' };
+  const { t: from, prefix } = startTile(c);
+  const path = findPath(from.x, from.y, st.x, st.y);
+  if (!path) return { ok: false, reason: "Can't reach that station" };
+  if (c.seat) { c.seat.occupant = null; c.seat = null; }
+  st.reservedBy = c.id;
+  c.station = st;
+  c.cutBy = null;
+  c.state = 'toStation';
+  c.sitting = false;
+  c.path = [...prefix, ...path];
+  c.standing = false;
+  return { ok: true };
+}
+
+// Pair customers who sit at a station with the nearest free barber
+function assignBarbers() {
+  const needy = Game.customers.filter(c => (c.state === 'toStation' || c.state === 'atStation') && !c.cutBy);
+  for (const c of needy) {
+    const st = c.station;
+    const barbers = idleBarbers().sort((a, b) => (Math.abs(a.x - st.x) + Math.abs(a.y - st.y)) - (Math.abs(b.x - st.x) + Math.abs(b.y - st.y)));
+    for (const b of barbers) {
+      const spot = standSpot(st, b);
+      if (!spot) continue;
+      const bs = startTile(b);
+      const bp = findPath(bs.t.x, bs.t.y, spot.x, spot.y);
+      if (!bp) continue;
+      c.cutBy = b;
+      b.job = { customer: c, station: st, spot };
+      b.state = 'toStation';
+      b.path = [...bs.prefix, ...bp];
+      if (Math.random() < 0.35) say(b, 'next');
+      break;
+    }
+  }
+}
+
+// Receptionist helper: seat waiting customers automatically
+function autoSeat() {
+  const waiting = Game.customers.filter(c => c.state === 'waiting' || (c.state === 'enter' && c.alpha >= 1));
+  waiting.sort((a, b) => a.patience / a.maxPatience - b.patience / b.maxPatience);
+  for (const c of waiting) {
+    const st = nearestFreeStation(c);
+    if (st) seatAt(c, st);
+  }
+}
+
+function nearestFreeStation(c) {
+  const from = startTile(c).t;
+  const list = freeStation(c.service.station)
+    .sort((a, b) => (Math.abs(a.x - from.x) + Math.abs(a.y - from.y)) - (Math.abs(b.x - from.x) + Math.abs(b.y - from.y)));
+  return list.find(st => findPath(from.x, from.y, st.x, st.y)) || null;
+}
+
+function customerNeedsSeat(c) {
+  return (c.state === 'waiting' || (c.state === 'enter' && c.alpha >= 1)) && freeStation(c.service.station).length > 0;
+}
+
+// Tapping a free station calls the waiting customer who has waited longest for it
+function callNextTo(st) {
+  const type = ITEMS[st.type].station;
+  const waiting = Game.customers
+    .filter(c => (c.state === 'waiting' || c.state === 'enter') && c.service.station === type)
+    .sort((a, b) => a.patience / a.maxPatience - b.patience / b.maxPatience);
+  if (!waiting.length) return { ok: false, reason: 'Nobody is waiting for this station' };
+  return seatAt(waiting[0], st);
+}
+
+function sendToRegister(c, reg) {
+  if (c.state !== 'done') return { ok: false, reason: `${c.name} isn't ready to pay` };
+  const spot = registerSpot(c, reg);
+  if (!spot) return { ok: false, reason: "Can't reach that register" };
+  releaseStation(c);
+  c.state = 'toPay';
+  c.sitting = false;
+  c.register = reg;
+  c.path = spot.path;
+  return { ok: true };
+}
+
+function registerSpot(c, reg) {
+  const t = tileOf(c);
+  let best = null;
+  const regs = reg ? [reg] : registers();
+  for (const r of regs) {
+    for (const [dx, dy] of DIRS) {
+      const x = r.x + dx, y = r.y + dy;
+      if (!walkable(x, y)) continue;
+      const path = findPath(t.x, t.y, x, y);
+      if (path && (!best || path.length < best.path.length)) best = { path, x, y, reg: r };
+    }
+  }
+  return best;
+}
+
+function releaseStation(c) {
+  if (c.station) { c.station.reservedBy = null; c.station = null; }
+}
+
+// Ring up the first customer waiting at a register
+function ringUp(reg) {
+  const queue = Game.customers.filter(c => c.state === 'atRegister' && (!reg || c.register === reg)).sort((a, b) => a.arrivedAt - b.arrivedAt);
+  if (!queue.length) return { ok: false, reason: 'Nobody is waiting to pay' };
+  const c = queue[0];
+  const fast = c.regWait < 12;
+  pay(c, fast ? 1.25 : 1);
+  sendHome(c);
+  return { ok: true };
+}
+
+function collectAtChair(c) {
+  if (c.state !== 'done') return { ok: false };
+  pay(c, c.payWait < 12 ? 1.15 : 1);
+  releaseStation(c);
+  sendHome(c);
+  return { ok: true };
+}
+
+// Tapping a customer during a cut helps the barber along
+function boostService(c) {
+  const now = Game.t;
+  if (now - (c.lastTap || 0) < 0.09) return;
+  c.lastTap = now;
+  c.progress = Math.min(0.999, c.progress + 0.03);
+  c.taps = (c.taps || 0) + 1;
+  addHairBit(c); addHairBit(c);
+  const p = iso(c.x, c.y, 46 + rand(-6, 6));
+  Game.sparkles.push({ x: p.x + rand(-10, 10), y: p.y, vx: rand(-20, 20), vy: -30, life: 0.5 });
+  sfx(c.service.id === 'buzz' || c.service.id === 'fade' ? 'buzz' : 'snip');
+}
+
+// One entry point for taps on the shop floor
+function handleWorldTap(agent, item, tile) {
+  const sel = Game.selected;
+  // 1. a selected customer is being directed somewhere
+  if (sel && !sel.barber && item) {
+    if ((sel.state === 'waiting' || sel.state === 'enter') && ITEMS[item.type].station) {
+      const r = seatAt(sel, item);
+      if (r.ok) { sfx('go'); Game.selected = null; hint('barber', '✂️ A free barber walks over on their own. Tap customers during the cut to speed it up!'); }
+      else { sfx('error'); toast(r.reason, 2200, 'warn'); }
+      return;
+    }
+    if (sel.state === 'done' && ITEMS[item.type].register) {
+      const r = sendToRegister(sel, item);
+      if (r.ok) { sfx('go'); Game.selected = null; hint('ring', '🔔 Tap the register to ring them up. Quick service earns a bigger tip!'); }
+      else { sfx('error'); toast(r.reason, 2200, 'warn'); }
+      return;
+    }
+  }
+  // 2. registers ring up whoever is waiting
+  if (item && ITEMS[item.type].register && Game.customers.some(c => c.state === 'atRegister' && c.register === item)) {
+    ringUp(item);
+    return;
+  }
+  // tapping a working barber helps with their customer
+  if (agent && agent.barber && agent.state === 'working' && agent.job) agent = agent.job.customer;
+  // hair under a barber's feet can still be swept
+  const pileHere = Game.piles.find(p => p.x === tile.x && p.y === tile.y);
+  if (pileHere && (!agent || agent.barber)) { sweep(pileHere); return; }
+  if (agent && !agent.barber) {
+    if (agent.state === 'atRegister') { ringUp(agent.register); return; }
+    if (agent.state === 'atStation' && agent.inService) { boostService(agent); Game.selected = agent; return; }
+    if (agent.state === 'done' && !registers().length) { collectAtChair(agent); return; }
+    Game.selected = agent;
+    sfx('select');
+    if (agent.state === 'waiting' || agent.state === 'enter') hint('seat2', '👉 Now tap a glowing chair to send them there.');
+    if (agent.state === 'done') hint('pay2', '👉 Now tap the glowing register.');
+    return;
+  }
+  if (agent) { Game.selected = agent; sfx('select'); return; }
+  // 3. sweep hair
+  const pile = Game.piles.find(p => p.x === tile.x && p.y === tile.y);
+  if (pile) { sweep(pile); return; }
+  // 4. tapping a free station calls the next customer
+  if (item && ITEMS[item.type].station && !item.reservedBy) {
+    const r = callNextTo(item);
+    if (r.ok) sfx('go'); else if (Game.customers.some(c => c.state === 'waiting')) toast(r.reason, 2000, 'warn');
+    Game.selected = null;
+    return;
+  }
+  Game.selected = null;
+}
+
+function hint(key, text) {
+  const s = Game.state;
+  s.hints = s.hints || {};
+  if (s.hints[key]) return;
+  s.hints[key] = true;
+  hintQueue.push(text);
+  if (hintQueue.length === 1) showNextHint();
+}
+
+// tutorial hints appear one at a time so they never pile up over the shop
+const hintQueue = [];
+function showNextHint() {
+  if (!hintQueue.length) return;
+  toast(hintQueue[0], 4000, 'hint');
+  setTimeout(() => { hintQueue.shift(); showNextHint(); }, 4300);
+}
+
+// ---------- hair on the floor ----------
+
+function dropHair(c, amount) {
+  const st = c.station;
+  if (!st) return;
+  const spots = DIRS.map(([dx, dy]) => ({ x: st.x + dx, y: st.y + dy })).filter(t => walkable(t.x, t.y) && !(t.x === doorTile().x && t.y === 0));
+  if (!spots.length) return;
+  const t = spots[(st.x * 7 + st.y * 3 + Game.piles.length) % spots.length];
+  let pile = Game.piles.find(p => p.x === t.x && p.y === t.y);
+  if (!pile) { pile = { x: t.x, y: t.y, amount: 0, color: c.hair, seed: Math.random() }; Game.piles.push(pile); }
+  pile.amount = Math.min(3, pile.amount + amount);
+  if (pile.amount >= 1) hint('sweep', '🧹 Hair on the floor makes customers unhappy. Tap it to sweep!');
+}
+
+function dirtiness() {
+  return Game.piles.reduce((a, p) => a + p.amount, 0);
+}
+
+function sweep(pile) {
+  Game.piles = Game.piles.filter(p => p !== pile);
+  const p = iso(pile.x + 0.5, pile.y + 0.5, 6);
+  for (let i = 0; i < 6; i++) Game.sparkles.push({ x: p.x, y: p.y, vx: rand(-40, 40), vy: rand(-40, -10), life: 0.6 });
+  addFloater(p.x, p.y - 10, '✨ Clean!', '#bde0fe', 1);
+  sfx('sweep');
+}
+
+// ---------- update ----------
 
 function updateCustomer(c, dt, dtMin) {
   const s = Game.state;
@@ -585,33 +817,53 @@ function updateCustomer(c, dt, dtMin) {
       if (moveAgent(c, dt)) { c.state = 'waiting'; c.sitting = !!c.seat; c.dir = 1; }
       break;
     case 'waiting':
-      patienceTick(c, dtMin);
+      patienceTick(c, dtMin * (c.standing ? 1.5 : 1));
+      if (customerNeedsSeat(c)) hint('seat', `👆 ${c.name} is waiting! Tap them, then tap a free chair.`);
       break;
     case 'toStation':
       c.alpha = Math.min(1, c.alpha + dt * 3);
       if (moveAgent(c, dt)) { c.state = 'atStation'; c.sitting = true; c.dir = 1; }
       break;
     case 'atStation':
-      if (c.barber.state === 'working' && !c.inService) {
+      if (!c.inService) patienceTick(c, dtMin * 0.4);
+      if (c.state !== 'atStation') break;
+      if (c.cutBy && c.cutBy.state === 'working' && !c.inService) {
         c.inService = true;
         c.cape = c.service.station !== 'sink';
         c.towel = c.service.station === 'sink' || c.service.id === 'shave';
         const itemSpeed = ITEMS[c.station.type].speed || 1;
-        c.duration = c.service.time / (c.barber.data.speed * (1 + s.upgrades.clippers * 0.15) * itemSpeed);
+        const power = utilityOff('power') ? 0.75 : 1;
+        c.duration = c.service.time / (c.cutBy.data.speed * (1 + s.upgrades.clippers * 0.15) * itemSpeed * power);
         c.progress = 0;
       }
       if (c.inService) {
         c.progress += dtMin / c.duration;
         if (Math.random() < dt * 4 && c.service.station === 'chair') addHairBit(c);
+        if (Math.random() < dt * 0.9) sfx(c.service.id === 'buzz' || c.service.id === 'fade' ? 'buzz' : c.service.station === 'sink' ? 'water' : 'snip', 0.35);
         if (c.progress >= 1) finishService(c);
       }
       break;
-    case 'toPay':
-      if (moveAgent(c, dt)) { c.state = 'paying'; c.timer = 6; }
+    case 'done':
+      c.payWait += dtMin;
+      if (hasHelper('cashier')) {
+        if (registers().length) { if (c.payWait > 3) sendToRegister(c); }
+        else if (c.payWait > 4) collectAtChair(c);
+      } else {
+        hint(registers().length ? 'pay' : 'payChair', registers().length
+          ? `💵 ${c.name} is done! Tap them, then tap the register.`
+          : `💵 ${c.name} is done! Tap them to take the money.`);
+      }
+      if (c.state === 'done' && c.payWait > 90) leaveWithoutTip(c);
       break;
-    case 'paying':
-      c.timer -= dtMin;
-      if (c.timer <= 0) { pay(c); sendHome(c); }
+    case 'toPay':
+      if (moveAgent(c, dt)) { c.state = 'atRegister'; c.regWait = 0; c.arrivedAt = Game.t; c.dir = 1; }
+      break;
+    case 'atRegister':
+      c.regWait += dtMin;
+      if (hasHelper('cashier') && c.regWait > 6) {
+        const first = Game.customers.filter(o => o.state === 'atRegister' && o.register === c.register).sort((a, b) => a.arrivedAt - b.arrivedAt)[0];
+        if (first === c) { pay(c, 1); sendHome(c); }
+      } else if (c.regWait > 70) leaveWithoutTip(c);
       break;
     case 'leaving':
       if (c.path.length <= 1) c.alpha = Math.max(0, c.alpha - dt * 2.5);
@@ -623,25 +875,40 @@ function updateCustomer(c, dt, dtMin) {
   }
 }
 
+function leaveWithoutTip(c) {
+  c.bill.tip = 0;
+  pay(c, 1, true);
+  releaseStation(c);
+  sendHome(c);
+  Game.state.rep = clamp(Game.state.rep - 0.02, 0, 5);
+  const p = iso(c.x, c.y, 70);
+  addFloater(p.x, p.y, '💸 No tip – too slow', '#ffb4a2', 1.8);
+}
+
 function patienceTick(c, dtMin) {
   c.patience -= dtMin;
   c.mood = c.patience / c.maxPatience < 0.3 ? 'angry' : 'neutral';
   if (c.patience <= 0) {
     if (c.seat) { c.seat.occupant = null; c.seat = null; }
+    releaseStation(c);
+    if (c.cutBy) { c.cutBy.job = null; c.cutBy.state = 'idle'; c.cutBy.working = false; c.cutBy = null; }
     sendHome(c);
     c.mood = 'angry';
     say(c, 'angry');
+    sfx('angry');
     loseCustomer(c, 0.05, '😡 Too slow!');
   }
 }
 
 function finishService(c) {
   const s = Game.state;
-  const b = c.barber;
+  const b = c.cutBy;
   const skill = barberSkill(b.data);
   const waitFrac = clamp(c.patience / c.maxPatience, 0, 1);
   const decor = Math.min(decorScore(), 40);
   let sat = 0.5 + waitFrac * 0.2 + (skill - 1) / 4 * 0.22 + decor / 40 * 0.1 + PRICE_LEVELS[s.priceLevel].sat + rand(-0.05, 0.05);
+  sat -= Math.min(0.2, dirtiness() * 0.025);
+  if (utilityOff('power')) sat -= 0.08;
   sat = clamp(sat, 0, 1);
   let delta = (sat - 0.45) * 0.15;
   if (delta > 0) delta *= Math.max(0.15, (5.2 - s.rep) / 4);
@@ -650,73 +917,61 @@ function finishService(c) {
   c.groomed = true;
   c.sat = sat;
   addSparkles(c);
+  sfx('done');
   c.mood = sat > 0.55 ? 'happy' : 'neutral';
   c.inService = false;
   c.cape = false; c.towel = false;
-  c.station.reservedBy = null;
-  c.station = null;
+  if (c.service.station === 'chair') dropHair(c, 1);
 
   b.job = null;
   b.state = 'idle';
   b.working = false;
+  c.cutBy = null;
 
-  const hasRegister = s.items.some(i => ITEMS[i.type].register);
   const price = Math.round(c.service.price * PRICE_LEVELS[s.priceLevel].price);
-  const tip = Math.round(price * sat * 0.25 * (1 + s.upgrades.loyalty * 0.15) * (hasRegister ? 1.1 : 1));
+  const tip = Math.round(price * sat * 0.25 * (1 + s.upgrades.loyalty * 0.15) * (registers().length ? 1.1 : 1));
   c.bill = { price, tip };
   s.today.served++;
   s.stats.served++;
-
-  const reg = nearestRegisterSpot(c);
-  if (reg) {
-    c.state = 'toPay';
-    c.sitting = false;
-    c.path = reg.path;
-  } else {
-    pay(c);
-    sendHome(c);
-  }
+  // stays in the chair until someone takes their money
+  c.state = 'done';
+  c.payWait = 0;
 }
 
-function nearestRegisterSpot(c) {
-  const t = tileOf(c);
-  let best = null;
-  for (const r of Game.state.items.filter(i => ITEMS[i.type].register)) {
-    for (const [dx, dy] of DIRS) {
-      const x = r.x + dx, y = r.y + dy;
-      if (!walkable(x, y)) continue;
-      const path = findPath(t.x, t.y, x, y);
-      if (path && (!best || path.length < best.path.length)) best = { path, x, y };
-    }
-  }
-  return best;
-}
-
-function pay(c) {
+function pay(c, tipMult = 1, quiet) {
   const s = Game.state;
-  const total = c.bill.price + c.bill.tip;
+  const tip = Math.round(c.bill.tip * tipMult);
+  const total = c.bill.price + tip;
   s.money += total;
   s.today.revenue += c.bill.price;
-  s.today.tips += c.bill.tip;
+  s.today.tips += tip;
   s.stats.earned += total;
+  s.week = s.week || { revenue: 0 };
+  s.week.revenue += total;
   const p = iso(c.x, c.y, 58);
   addFloater(p.x, p.y, `+$${total}`, '#9be564');
-  say(c, c.sat > 0.6 ? 'happy' : 'ok');
-  const emo = c.sat > 0.8 ? '😍' : c.sat > 0.6 ? '😊' : c.sat > 0.45 ? '🙂' : '😐';
-  addFloater(p.x + 18, p.y - 6, emo, null, 1.6);
+  if (tipMult > 1) addFloater(p.x, p.y - 16, '⚡ Fast service!', '#ffe066', 1.6);
+  if (!quiet) {
+    say(c, c.sat > 0.6 ? 'happy' : 'ok');
+    const emo = c.sat > 0.8 ? '😍' : c.sat > 0.6 ? '😊' : c.sat > 0.45 ? '🙂' : '😐';
+    addFloater(p.x + 18, p.y - 6, emo, null, 1.6);
+  }
+  flyCoins(p.x, p.y, Math.min(8, 2 + Math.floor(total / 15)));
   sfx('cash');
+}
+
+// Coins that fly from the shop floor up to the money counter (drawn in screen space)
+function flyCoins(wx, wy, n) {
+  for (let i = 0; i < n; i++) Game.coins.push({ wx, wy, delay: i * 0.06, t: 0, jitter: rand(-14, 14) });
 }
 
 function updateBarber(b, dt) {
   b.alpha = Math.min(1, (b.alpha || 0) + dt * 3);
   if (b.state === 'toStation') {
-    if (moveAgent(b, dt)) {
-      b.state = 'waitCustomer';
-    }
+    if (moveAgent(b, dt)) b.state = 'waitCustomer';
   }
   if (b.state === 'waitCustomer' && b.job) {
     const c = b.job.customer;
-    // face the chair
     const st = b.job.station;
     const sdx = (st.x - Math.floor(b.x)) - (st.y - Math.floor(b.y));
     if (sdx) b.dir = sdx > 0 ? 1 : -1;
@@ -726,15 +981,11 @@ function updateBarber(b, dt) {
   if (b.state === 'idle' && !b.path.length) {
     b.moving = false;
     b.idleT = (b.idleT || 0) + dt;
-    // wander a bit when bored
     if (b.idleT > 8 && Math.random() < dt * 0.3) {
       b.idleT = 0;
       const t = tileOf(b);
       const opts = freeFloorTiles().filter(o => Math.abs(o.x - t.x) + Math.abs(o.y - t.y) <= 3 && o.y > 0);
-      if (opts.length) {
-        const o = pick(opts);
-        b.path = findPath(t.x, t.y, o.x, o.y) || [];
-      }
+      if (opts.length) { const o = pick(opts); b.path = findPath(t.x, t.y, o.x, o.y) || []; }
     }
   }
 }
@@ -796,17 +1047,87 @@ function updateParticles(dt) {
 function endDay() {
   const s = Game.state;
   const wages = s.barbers.reduce((a, b) => a + (b.wage || 0), 0);
-  const rent = stage().rent;
-  s.money -= wages + rent;
-  const summary = { ...s.today, day: s.day, wages, rent, repEnd: s.rep, money: s.money };
+  s.money -= wages;
+  // late fees and reputation damage for overdue bills
+  let lateFees = 0;
+  for (const b of s.bills) {
+    if (s.day >= b.due) {
+      const fee = Math.max(2, Math.round(b.amount * 0.1));
+      b.amount += fee; lateFees += fee; b.late = true;
+      s.rep = clamp(s.rep - 0.04, 0, 5);
+    }
+  }
+  const newBills = issueBills(s.day);
+  const summary = { ...s.today, day: s.day, wages, lateFees, newBills, repEnd: s.rep, money: s.money, unpaid: s.bills.reduce((a, b) => a + b.amount, 0) };
   Game.nightMode = true;
   Game.particles = [];
+  Game.piles = [];          // the night cleaner sweeps up
   s.day++;
   s.time = OPEN_TIME;
   s.today = freshToday(s.rep);
   s.candidates = genCandidates(3);
   saveGame();
   emit({ type: 'dayEnd', summary });
+}
+
+// ---------- bills ----------
+
+// Bills arrive at closing time and are due a few days later. Pay them from the Bills tab.
+function issueBills(day) {
+  const s = Game.state, st = stage();
+  const out = [];
+  const add = (type, amount, days) => {
+    amount = Math.round(amount);
+    if (amount <= 0) return;
+    const b = { id: s.nextBillId++, type, amount, issued: day, due: day + days };
+    s.bills.push(b); out.push(b);
+  };
+  if (st.rent > 0) add('rent', st.rent, 2);
+  add('supplies', 4 + s.today.served * 1.3, 3);
+  if (day % 3 === 0) {
+    const electric = s.items.filter(i => ITEMS[i.type].electric).length;
+    add('power', (8 + s.items.length * 1.2 + electric * 4 + s.stage * 10) * 3, 3);
+    const sinks = s.items.filter(i => ITEMS[i.type].station === 'sink' || ITEMS[i.type].station === 'color').length;
+    add('water', (5 + sinks * 7 + s.stage * 5) * 3, 3);
+  }
+  if (day % 5 === 0) add('internet', 20 + s.stage * 8, 4);
+  if (day % 7 === 0) { add('tax', s.week.revenue * 0.1, 4); s.week.revenue = 0; }
+  return out;
+}
+
+function utilityOff(type) {
+  const s = Game.state;
+  return !!(s && s.bills && s.bills.some(b => b.type === type && s.day > b.due));
+}
+
+let lastPowerOff = false, lastWaterOff = false;
+function updateBills() {
+  const p = utilityOff('power'), w = utilityOff('water');
+  if (p && !lastPowerOff) { toast('⚡ Power cut! Pay the electricity bill to get the lights back.', 4500, 'warn'); sfx('power'); }
+  if (w && !lastWaterOff) toast('💧 Water shut off! Sinks and color stations stopped working.', 4500, 'warn');
+  lastPowerOff = p; lastWaterOff = w;
+}
+
+function payBill(id) {
+  const s = Game.state;
+  const b = s.bills.find(x => x.id === id);
+  if (!b) return { ok: false };
+  if (s.money < b.amount) return { ok: false, reason: `Not enough money for the ${BILL_TYPES[b.type].name} bill` };
+  s.money -= b.amount;
+  s.bills = s.bills.filter(x => x !== b);
+  s.stats.bills = (s.stats.bills || 0) + b.amount;
+  sfx('stamp');
+  saveGame();
+  return { ok: true };
+}
+
+function payAllBills() {
+  const s = Game.state;
+  const total = s.bills.reduce((a, b) => a + b.amount, 0);
+  if (!total) return { ok: false, reason: 'No bills to pay' };
+  if (s.money < total) return { ok: false, reason: `You need ${total} to pay everything` };
+  for (const b of s.bills.slice()) payBill(b.id);
+  return { ok: true };
 }
 
 function startDay() {

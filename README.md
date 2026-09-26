@@ -10,6 +10,21 @@ You can also serve the folder, for example with `npx serve .`.
 
 ## How it works
 
+**You run the floor with your fingers:**
+
+- 👆 **Seat customers:** tap a waiting customer, then tap a glowing chair. Or tap a free chair to call the next person in line.
+  A free barber walks over on their own.
+- ✂️ **Speed up cuts:** tap a customer (or their barber) during the cut.
+- 💵 **Take payment:** when a cut is done, tap the customer, then tap the register. Tap the register again to ring them up.
+  Fast checkout earns a bigger tip. Customers left waiting too long leave without tipping.
+- 🧹 **Sweep:** tap hair on the floor. A dirty floor makes customers unhappy.
+- 🧾 **Pay bills:** rent and supplies arrive every day, electricity and water every 3 days, internet every 5 and taxes every 7.
+  Late bills add a 10% fee each night and cost reputation. Unpaid electricity causes a power cut (dark shop, slower cuts, TVs off);
+  unpaid water stops sinks and color stations.
+- 🛎️ Later you can hire a **Receptionist**, **Cashier** and **Cleaner** (Upgrades tab) to automate these jobs.
+- 🎵 Lo-fi background music (it gets richer as the shop grows) and sound effects: door bell, scissors, clippers, register,
+  coins, sweeping. Toggle them with the 🎵 button or in the ⚙️ menu.
+
 - **Customers** walk in, sit on a waiting seat, then get a service from a free barber at a free station.
   If they wait too long they leave angry and your reputation ★ drops.
 - **Build**: place barber chairs, waiting seats, a cash register (+tips), wash sinks, color stations and decor.
@@ -30,7 +45,7 @@ You can also serve the folder, for example with `npx serve .`.
 | 4 | Cani Studio | 12×12 | 8 | $300 |
 | 5 | Cani Empire HQ | 14×14 | 12 | $700 |
 
-Each day runs from 09:00 to 19:00. Wages and rent are paid at closing time. The game autosaves to `localStorage`.
+Each day runs from 09:00 to 19:00. Wages are paid at closing time; everything else comes as bills. The game autosaves to `localStorage`.
 
 **Controls:** drag to pan, scroll or pinch to zoom, tap or click to place. `Space` pauses, `1`–`3` set the speed,
 `B` opens Build, `Esc` cancels. Right-click also cancels the build tool.
@@ -42,7 +57,8 @@ Each day runs from 09:00 to 19:00. Wages and rent are paid at closing time. The 
 | `js/data.js` | Locations, furniture, services, upgrades and balancing constants |
 | `js/iso.js` | Isometric projection and drawing primitives |
 | `js/sprites.js` | Procedurally drawn furniture and characters |
-| `js/world.js` | Simulation: pathfinding, customers, barbers, economy, day cycle, save/load |
+| `js/world.js` | Simulation: pathfinding, customers, barbers, tap actions, bills, economy, day cycle, save/load |
+| `js/audio.js` | Procedural background music and sound effects (Web Audio) |
 | `js/render.js` | Scene rendering (floor, walls, depth-sorted entities, overlays) |
 | `js/ui.js` | HUD, panels, modals, toasts and sound effects |
 | `js/main.js` | Boot, main loop and input handling |

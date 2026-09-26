@@ -38,6 +38,13 @@ function updateHUD(force) {
     const v = +b.dataset.speed;
     b.classList.toggle('active', v === 0 ? Game.paused : !Game.paused && Game.speed === v);
   });
+  const overdue = s.bills.some(b => s.day > b.due);
+  const due = s.bills.length;
+  const badge = $('#billBadge');
+  badge.textContent = due;
+  badge.hidden = !due;
+  $('#btnBills').classList.toggle('alert', overdue);
+  $('#musicBtn').textContent = Sound.musicOn ? '🎵' : '🔇';
   const next = STAGES[s.stage + 1];
   $('#btnExpand').classList.toggle('pulse', !!next && expandRequirements().every(r => r.ok));
   if (UI.panel && now - UI.lastPanel > 600 && !panelInputFocused()) renderPanel();
@@ -60,7 +67,9 @@ function inspectState(a) {
   switch (a.state) {
     case 'enter': case 'waiting': return { text: 'Waiting for a barber', bar: clamp(a.patience / a.maxPatience, 0, 1), patience: true };
     case 'toStation': return { text: 'Walking to the chair', bar: null };
-    case 'atStation': return a.inService ? { text: `Getting a ${a.service.name}`, bar: clamp(a.progress, 0, 1) } : { text: 'Sitting down', bar: null };
+    case 'atStation': return a.inService ? { text: `Getting a ${a.service.name} – tap to help!`, bar: clamp(a.progress, 0, 1) } : { text: a.cutBy ? 'Barber is on the way' : 'Waiting for a free barber', bar: null };
+    case 'done': return { text: registers().length ? 'Finished! Send them to the register' : 'Finished! Take their payment', bar: null };
+    case 'atRegister': return { text: 'Waiting at the register – ring them up!', bar: null };
     case 'toPay': case 'paying': return { text: 'Paying at the register', bar: null };
     default: return { text: a.mood === 'angry' ? 'Leaving angry' : a.mood === 'sad' ? 'Leaving – no room' : 'Heading home, fresh cut', bar: null };
   }
@@ -88,7 +97,7 @@ function updateInspector() {
       ${details}
       <div class="insp-row" id="inspTxt"></div>
       ${st.bar !== null ? `<div class="insp-bar${st.patience ? ' patience' : ''}"><span id="inspBar"></span></div>` : ''}
-      ${a.barber ? `<button class="btn small" data-insp="rename">✏️ Rename</button>` : ''}`;
+      ${a.barber ? `<button class="btn small" data-insp="rename">✏️ Rename</button>` : customerActions(a)}`;
   }
   $('#inspTxt').textContent = st.text;
   const bar = $('#inspBar');
@@ -98,9 +107,29 @@ function updateInspector() {
   }
 }
 
+function customerActions(c) {
+  if (c.state === 'waiting' || c.state === 'enter') return `<div class="insp-actions"><span class="muted small">Tap a glowing chair, or</span><button class="btn small" data-insp="seat">💺 Nearest chair</button></div>`;
+  if (c.state === 'done') return registers().length
+    ? `<div class="insp-actions"><span class="muted small">Tap the glowing register, or</span><button class="btn small" data-insp="toRegister">💵 Go pay</button></div>`
+    : `<div class="insp-actions"><button class="btn small primary" data-insp="collect">💵 Take payment</button></div>`;
+  if (c.state === 'atRegister') return `<div class="insp-actions"><button class="btn small primary" data-insp="ring">🔔 Ring up</button></div>`;
+  return '';
+}
+
 function handleInspectClick(e) {
   const b = e.target.closest('[data-insp]');
   if (!b) return;
+  const c = Game.selected;
+  let r;
+  if (b.dataset.insp === 'seat' && c) {
+    const st = nearestFreeStation(c);
+    r = st ? seatAt(c, st) : { ok: false, reason: 'No free station for this service right now' };
+    if (r.ok) { sfx('go'); Game.selected = null; }
+  }
+  if (b.dataset.insp === 'toRegister' && c) { r = sendToRegister(c); if (r.ok) { sfx('go'); Game.selected = null; } }
+  if (b.dataset.insp === 'collect' && c) { r = collectAtChair(c); Game.selected = null; }
+  if (b.dataset.insp === 'ring' && c) { r = ringUp(c.register); Game.selected = null; }
+  if (r && !r.ok && r.reason) { sfx('error'); toast(r.reason, 2200, 'warn'); }
   if (b.dataset.insp === 'close') Game.selected = null;
   if (b.dataset.insp === 'rename' && Game.selected && Game.selected.barber) {
     UI.renaming = Game.selected.data.id;
@@ -131,9 +160,9 @@ function renderPanel() {
   UI.lastPanel = performance.now();
   const body = $('#panelBody');
   const scroll = body.scrollTop;
-  const titles = { build: '🛠️ Build & Decorate', staff: '💇 Staff', services: '✂️ Services & Prices', upgrades: '⚡ Upgrades', expand: '🏙️ Expand the Empire', menu: '⚙️ Menu' };
+  const titles = { bills: '🧾 Bills', build: '🛠️ Build & Decorate', staff: '💇 Staff', services: '✂️ Services & Prices', upgrades: '⚡ Upgrades', expand: '🏙️ Expand the Empire', menu: '⚙️ Menu' };
   $('#panelTitle').textContent = titles[UI.panel] || '';
-  const html = ({ build: buildPanel, staff: staffPanel, services: servicesPanel, upgrades: upgradesPanel, expand: expandPanel, menu: menuPanel })[UI.panel]();
+  const html = ({ bills: billsPanel, build: buildPanel, staff: staffPanel, services: servicesPanel, upgrades: upgradesPanel, expand: expandPanel, menu: menuPanel })[UI.panel]();
   if (body.dataset.html !== html) {
     body.innerHTML = html;
     body.dataset.html = html;
@@ -226,15 +255,47 @@ function servicesPanel() {
 
 function upgradesPanel() {
   const s = Game.state;
-  return Object.entries(UPGRADES).map(([key, u]) => {
+  const card = ([key, u]) => {
     const lvl = s.upgrades[key], max = u.costs.length;
     const cost = u.costs[lvl];
-    const pips = Array.from({ length: max }, (_, i) => `<i class="${i < lvl ? 'on' : ''}"></i>`).join('');
-    return `<div class="card">
+    const locked = (u.stage || 0) > s.stage;
+    const pips = max > 1 ? `<div class="pips">${Array.from({ length: max }, (_, i) => `<i class="${i < lvl ? 'on' : ''}"></i>`).join('')}</div>` : '';
+    let side;
+    if (lvl >= max) side = `<span class="badge">${u.helper ? 'Hired' : 'MAX'}</span>`;
+    else if (locked) side = `<span class="muted small">🔒 ${STAGES[u.stage].name}</span>`;
+    else side = `<button class="btn small" data-action="upgrade" data-key="${key}" ${s.money < cost ? 'disabled' : ''}>${fmt(cost)}</button>`;
+    return `<div class="card${locked ? ' locked' : ''}">
       <div class="card-icon">${u.icon}</div>
-      <div class="card-main"><div class="card-title">${u.name}</div><div class="card-desc">${u.desc}</div><div class="pips">${pips}</div></div>
-      <div class="side">${lvl >= max ? '<span class="badge">MAX</span>' : `<button class="btn small" data-action="upgrade" data-key="${key}" ${s.money < cost ? 'disabled' : ''}>${fmt(cost)}</button>`}</div></div>`;
+      <div class="card-main"><div class="card-title">${u.name}</div><div class="card-desc">${u.desc}</div>${pips}</div>
+      <div class="side">${side}</div></div>`;
+  };
+  const list = Object.entries(UPGRADES);
+  return `<h3>Equipment</h3>${list.filter(([, u]) => !u.helper).map(card).join('')}
+    <h3>Helpers</h3><div class="panel-note">Until you hire helpers, <b>you</b> seat customers, take payments and sweep the floor.</div>
+    ${list.filter(([, u]) => u.helper).map(card).join('')}`;
+}
+
+function billsPanel() {
+  const s = Game.state;
+  const total = s.bills.reduce((a, b) => a + b.amount, 0);
+  if (!s.bills.length) {
+    return `<div class="empty">✅ All bills are paid.<br><span class="muted">New bills arrive at closing time: rent and supplies every day, electricity and water every 3 days, internet every 5 and taxes every 7.</span></div>`;
+  }
+  const rows = s.bills.slice().sort((a, b) => a.due - b.due).map(b => {
+    const t = BILL_TYPES[b.type];
+    const overdue = s.day > b.due;
+    const dueTxt = overdue ? `Overdue by ${s.day - b.due} day${s.day - b.due > 1 ? 's' : ''}` : b.due === s.day ? 'Due today' : `Due day ${b.due}`;
+    return `<div class="card bill${overdue ? ' overdue' : b.due === s.day ? ' soon' : ''}">
+      <div class="card-icon">${t.icon}</div>
+      <div class="card-main"><div class="card-title">${t.name}</div>
+      <div class="card-desc">${dueTxt}${b.late ? ' · late fees added' : ''}</div>
+      <div class="card-desc small">${t.note}</div></div>
+      <div class="side"><div class="price">${fmt(b.amount)}</div>
+      <button class="btn small" data-action="payBill" data-id="${b.id}" ${s.money < b.amount ? 'disabled' : ''}>Pay</button></div></div>`;
   }).join('');
+  return `<div class="panel-note">Unpaid: <b>${fmt(total)}</b>. Late bills add a 10% fee every night and cost reputation.</div>
+    <button class="btn wide" data-action="payAll" ${s.money < total ? 'disabled' : ''}>Pay all · ${fmt(total)}</button>
+    <div style="height:10px"></div>${rows}`;
 }
 
 function expandPanel() {
@@ -262,6 +323,7 @@ function menuPanel() {
   const s = Game.state;
   return `<div class="stats">
       <div><span>Total earned</span><b>${fmt(s.stats.earned)}</b></div>
+      <div><span>Bills paid</span><b>${fmt(s.stats.bills || 0)}</b></div>
       <div><span>Customers served</span><b>${s.stats.served}</b></div>
       <div><span>Customers lost</span><b>${s.stats.lost}</b></div>
       <div><span>Customers / hour</span><b>${spawnRatePerHour().toFixed(1)}</b></div>
@@ -269,7 +331,8 @@ function menuPanel() {
       <div><span>Days in business</span><b>${s.day}</b></div>
     </div>
     <div class="menu-btns">
-      <button class="btn" data-action="toggleSound">${UI.muted ? '🔇 Sound off' : '🔊 Sound on'}</button>
+      <button class="btn" data-action="toggleMusic">${Sound.musicOn ? '🎵 Music on' : '🔇 Music off'}</button>
+      <button class="btn" data-action="toggleSound">${Sound.sfxOn ? '🔊 Sound effects on' : '🔈 Sound effects off'}</button>
       <button class="btn" data-action="toggleNames">${UI.showNames ? '🏷️ Names on' : '🏷️ Names off'}</button>
       <button class="btn" data-action="recenter">🎯 Recenter view</button>
       <button class="btn" data-action="save">💾 Save now</button>
@@ -291,7 +354,10 @@ function handlePanelClick(e) {
     case 'upgrade': r = buyUpgrade(el.dataset.key); break;
     case 'price': Game.state.priceLevel = +el.dataset.idx; break;
     case 'expand': r = expandShop(); if (r.ok) { closePanel(); Renderer.fitCamera(); } break;
-    case 'toggleSound': UI.muted = !UI.muted; break;
+    case 'toggleSound': unlockAudio(); setSfx(!Sound.sfxOn); break;
+    case 'toggleMusic': unlockAudio(); setMusic(!Sound.musicOn); break;
+    case 'payBill': r = payBill(+el.dataset.id); if (r.ok) toast('🧾 Bill paid'); break;
+    case 'payAll': r = payAllBills(); if (r.ok) toast('🧾 All bills paid!'); break;
     case 'toggleNames': UI.showNames = !UI.showNames; break;
     case 'recenter': Renderer.fitCamera(); break;
     case 'save': saveGame(); toast('Game saved 💾'); break;
@@ -406,61 +472,48 @@ function showIntro() {
   showModal(`<div class="logo-big">CANI<span>Barber Tycoon</span></div>
     <p>Every legend starts somewhere. <b>Cani</b> starts in a <b>garage</b> with one barber chair, two plastic chairs and a plant.</p>
     <ul class="howto">
-      <li>💈 Customers from Albania 🇦🇱 and Slovenia 🇸🇮 walk in, wait on a seat and get a cut from a free barber. Tap anyone to see who they are.</li>
+      <li>👆 Customers from Albania 🇦🇱 and Slovenia 🇸🇮 walk in and sit down. <b>Tap a customer, then tap a chair</b> to send them for a cut.</li>
+      <li>✂️ Tap customers during the cut to speed it up. When they're done, <b>tap them, then the register</b>, and tap the register to ring them up.</li>
+      <li>🧹 Tap hair on the floor to sweep it. 🧾 Pay your <b>bills</b> on time or the power and water get cut!</li>
       <li>⏳ Watch the patience bar – slow service costs you reputation ★.</li>
       <li>🛠️ <b>Build</b> more seats, chairs and decor. Appeal brings more customers.</li>
       <li>💇 <b>Hire</b> barbers and give them any name you like ✏️. Unlock <b>services</b> and buy <b>upgrades</b>.</li>
       <li>🏙️ <b>Expand</b> from the garage to a corner shop, downtown, a studio and finally the <b>Cani Empire HQ</b>.</li>
     </ul>
     <p class="muted small">Drag to move the camera, scroll / pinch to zoom. Space pauses, 1-3 set speed.</p>`,
-    [{ label: "Let's cut some hair ✂️", cls: 'primary', fn: () => { Game.state.introSeen = true; Game.paused = false; } }]);
+    [{ label: "Let's cut some hair ✂️", cls: 'primary', fn: () => { unlockAudio(); Game.state.introSeen = true; Game.paused = false; } }]);
 }
 
 function showDaySummary(sm) {
-  const net = sm.revenue + sm.tips - sm.wages - sm.rent;
+  const net = sm.revenue + sm.tips - sm.wages - sm.lateFees;
   const repD = sm.repEnd - sm.repStart;
   let tip = '';
-  if (sm.lost > sm.served * 0.3 && sm.lost > 2) {
+  if (Game.state.bills.some(b => Game.state.day > b.due)) tip = '⚠️ You have overdue bills! Open the <b>Bills</b> tab and pay them before the power or water gets cut.';
+  else if (sm.lost > sm.served * 0.3 && sm.lost > 2) {
     tip = Game.state.barbers.length < stage().maxBarbers
-      ? '💡 Many customers left. Hire another barber, add chairs and waiting seats – or decor like a TV to make waiting easier.'
+      ? '💡 Many customers left. Seat them faster, hire another barber and add chairs and waiting seats.'
       : Game.state.stage < STAGES.length - 1
-        ? `💡 Many customers left. ${stage().name} is at full capacity – save up and <b>Expand</b> to hire more barbers. Pro Clippers also speed things up.`
+        ? `💡 Many customers left. ${stage().name} is at full capacity – save up and <b>Expand</b> to hire more barbers. Tap customers during cuts to speed things up.`
         : '💡 Many customers left. Add waiting seats and patience decor, or raise prices to Premium.';
-  }
-  else if (Game.state.money > 800 && Game.state.stage === 0) tip = '💡 Check the <b>Expand</b> tab – the Corner Shop is waiting!';
-  else if (sm.served > 0 && repD < 0) tip = '💡 Reputation dropped. Faster service and skilled barbers keep customers happy.';
+  } else if (Game.state.money > 800 && Game.state.stage === 0) tip = '💡 Check the <b>Expand</b> tab – the Corner Shop is waiting!';
+  else if (sm.served > 0 && repD < 0) tip = '💡 Reputation dropped. Faster service, a clean floor and skilled barbers keep customers happy.';
+  const bills = sm.newBills.length
+    ? `<h3 class="sub">🧾 New bills</h3><div class="bill-list">${sm.newBills.map(b => `<div><span>${BILL_TYPES[b.type].icon} ${BILL_TYPES[b.type].name}</span><span>${fmt(b.amount)} · due day ${b.due}</span></div>`).join('')}</div>`
+    : '';
   showModal(`<h2>🌙 Day ${sm.day} closed</h2>
     <div class="stats">
       <div><span>Haircuts</span><b>${fmt(sm.revenue)}</b></div>
       <div><span>Tips</span><b>${fmt(sm.tips)}</b></div>
       <div><span>Wages</span><b class="neg">-${fmt(sm.wages)}</b></div>
-      <div><span>Rent</span><b class="neg">-${fmt(sm.rent)}</b></div>
+      <div><span>Late fees</span><b class="${sm.lateFees ? 'neg' : ''}">-${fmt(sm.lateFees)}</b></div>
       <div class="total"><span>Profit</span><b class="${net < 0 ? 'neg' : 'pos'}">${fmt(net)}</b></div>
       <div><span>Served / lost</span><b>${sm.served} / ${sm.lost}</b></div>
       <div><span>Reputation</span><b>${sm.repEnd.toFixed(2)} ${repD >= 0 ? '▲' : '▼'}${Math.abs(repD).toFixed(2)}</b></div>
-      <div><span>Cash</span><b>${fmt(sm.money)}</b></div>
-    </div>${tip ? `<p class="tip">${tip}</p>` : ''}`,
-    [{ label: `☀️ Open Day ${Game.state.day}`, cls: 'primary', fn: startDay }]);
-}
-
-// ---------- sound ----------
-
-let audioCtx = null;
-function sfx(kind) {
-  if (UI.muted) return;
-  try {
-    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-    const notes = { cash: [[1318, 0], [1760, 0.07]], place: [[440, 0], [660, 0.05]], sell: [[660, 0], [440, 0.06]], hire: [[523, 0], [659, 0.08], [784, 0.16]], fanfare: [[523, 0], [659, 0.12], [784, 0.24], [1046, 0.36]] }[kind] || [[600, 0]];
-    const now = audioCtx.currentTime;
-    for (const [f, d] of notes) {
-      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-      o.type = kind === 'cash' ? 'triangle' : 'square';
-      o.frequency.value = f;
-      g.gain.setValueAtTime(0.0001, now + d);
-      g.gain.exponentialRampToValueAtTime(0.06, now + d + 0.01);
-      g.gain.exponentialRampToValueAtTime(0.0001, now + d + 0.18);
-      o.connect(g).connect(audioCtx.destination);
-      o.start(now + d); o.stop(now + d + 0.2);
-    }
-  } catch (e) { /* audio unavailable */ }
+      <div><span>Cash · unpaid bills</span><b>${fmt(sm.money)} · <span class="${sm.unpaid ? 'neg' : ''}">${fmt(sm.unpaid)}</span></b></div>
+    </div>${bills}${tip ? `<p class="tip">${tip}</p>` : ''}`,
+    [
+      ...(sm.unpaid ? [{ label: '🧾 Pay bills', fn: () => { startDay(); openPanel('bills'); } }] : []),
+      { label: `☀️ Open Day ${Game.state.day}`, cls: 'primary', fn: startDay },
+    ]);
+  if (sm.newBills.length) sfx('bill');
 }

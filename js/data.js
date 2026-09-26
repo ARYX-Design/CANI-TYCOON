@@ -47,12 +47,12 @@ const ITEMS = {
   register:     { name: 'Cash Register',    cost: 200,  stage: 0, register: true, decor: 0, icon: '💵', desc: 'Customers pay here and tip 10% more.' },
   bench:        { name: 'Leather Bench',    cost: 180,  stage: 1, seat: true, decor: 1, icon: '🛋️', desc: 'Comfy waiting spot. +1 appeal.' },
   sink:         { name: 'Wash Sink',        cost: 450,  stage: 1, station: 'sink', decor: 0, icon: '🚿', desc: 'Unlocks Wash & Style service.' },
-  tv:           { name: 'Television',       cost: 300,  stage: 1, decor: 2, patience: 0.1, icon: '📺', desc: '+2 appeal, customers wait 10% longer.' },
-  coffee:       { name: 'Coffee Machine',   cost: 400,  stage: 1, decor: 2, patience: 0.12, icon: '☕', desc: '+2 appeal, customers wait 12% longer.' },
+  tv:           { name: 'Television',       cost: 300,  stage: 1, electric: true, decor: 2, patience: 0.1, icon: '📺', desc: '+2 appeal, customers wait 10% longer.' },
+  coffee:       { name: 'Coffee Machine',   cost: 400,  stage: 1, electric: true, decor: 2, patience: 0.12, icon: '☕', desc: '+2 appeal, customers wait 12% longer.' },
   colorStation: { name: 'Color Station',    cost: 1000, stage: 2, station: 'color', decor: 0, icon: '🎨', desc: 'Unlocks the Hair Color service.' },
-  jukebox:      { name: 'Jukebox',          cost: 800,  stage: 2, decor: 4, patience: 0.08, icon: '🎵', desc: 'Good vibes. +4 appeal.' },
-  arcade:       { name: 'Arcade Machine',   cost: 1500, stage: 3, decor: 5, patience: 0.15, icon: '🕹️', desc: '+5 appeal, waiting is fun now.' },
-  aquarium:     { name: 'Aquarium',         cost: 2500, stage: 3, decor: 7, icon: '🐠', desc: 'Relaxing fish. +7 appeal.' },
+  jukebox:      { name: 'Jukebox',          cost: 800,  stage: 2, electric: true, decor: 4, patience: 0.08, icon: '🎵', desc: 'Good vibes. +4 appeal.' },
+  arcade:       { name: 'Arcade Machine',   cost: 1500, stage: 3, electric: true, decor: 5, patience: 0.15, icon: '🕹️', desc: '+5 appeal, waiting is fun now.' },
+  aquarium:     { name: 'Aquarium',         cost: 2500, stage: 3, electric: true, decor: 7, icon: '🐠', desc: 'Relaxing fish. +7 appeal.' },
   goldChair:    { name: 'Gold Throne',      cost: 3000, stage: 4, station: 'chair', decor: 3, speed: 1.25, icon: '👑', desc: 'Luxury barber chair. 25% faster cuts.' },
   statue:       { name: 'Cani Statue',      cost: 6000, stage: 4, decor: 12, icon: '🗿', desc: 'A golden statue of the founder. +12 appeal.' },
 };
@@ -72,10 +72,22 @@ const SERVICES = [
 ];
 
 const UPGRADES = {
+  receptionist: { name: 'Receptionist', icon: '🛎️', desc: 'Seats waiting customers for you.', costs: [1200], stage: 1, helper: true },
+  cashier:   { name: 'Cashier',          icon: '🧾', desc: 'Sends finished customers to pay and rings them up.', costs: [1800], stage: 2, helper: true },
+  cleaner:   { name: 'Cleaner',          icon: '🧹', desc: 'Sweeps hair off the floor.', costs: [700], stage: 1, helper: true },
   clippers:  { name: 'Pro Clippers',     icon: '✂️', desc: 'All services 15% faster per level.',      costs: [400, 1500, 5000] },
   marketing: { name: 'Social Media Ads', icon: '📱', desc: '+20% more customers per level.',          costs: [300, 1200, 4000] },
   academy:   { name: 'Barber Academy',   icon: '🎓', desc: '+0.5 skill for every barber per level.',  costs: [600, 2500, 8000] },
   loyalty:   { name: 'Loyalty Cards',    icon: '💳', desc: '+15% tips and +10% patience per level.',  costs: [250, 1000, 3500] },
+};
+
+const BILL_TYPES = {
+  rent:     { name: 'Rent',             icon: '🏠', note: 'Late rent upsets the landlord (−reputation)' },
+  power:    { name: 'Electricity',      icon: '⚡', note: 'Overdue = power cut: dark shop, slower cuts, TVs off' },
+  water:    { name: 'Water',            icon: '💧', note: 'Overdue = water off: sinks and color stations stop' },
+  supplies: { name: 'Supplies',         icon: '🧴', note: 'Shampoo, blades, towels and wax' },
+  internet: { name: 'Internet & Phone', icon: '📶', note: 'Keeps the booking line open' },
+  tax:      { name: 'Taxes',            icon: '🏛️', note: '10% of the week\'s income' },
 };
 
 const PRICE_LEVELS = [

@@ -29,6 +29,7 @@
         <button data-speed="2" title="Fast (2)">⏩</button>
         <button data-speed="3" title="Fastest (3)">⏭</button>
       </div>
+      <button id="musicBtn" class="round-btn" title="Music on/off" aria-label="Music on/off">🎵</button>
       <button id="menuBtn" title="Menu">⚙️</button>
     </div>
   </header>
@@ -47,6 +48,7 @@
 
   <nav id="toolbar">
     <button data-panel="build"><span>🛠️</span>Build</button>
+    <button data-panel="bills" id="btnBills"><span>🧾</span>Bills<i id="billBadge" class="badge-count" hidden>0</i></button>
     <button data-panel="staff"><span>💇</span>Staff</button>
     <button data-panel="services"><span>✂️</span>Services</button>
     <button data-panel="upgrades"><span>⚡</span>Upgrades</button>
@@ -59,6 +61,7 @@
   <script src="js/iso.js"></script>
   <script src="js/sprites.js"></script>
   <script src="js/world.js"></script>
+  <script src="js/audio.js"></script>
   <script src="js/render.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/main.js"></script>
