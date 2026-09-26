@@ -58,8 +58,9 @@ stone paving, pastel houses with red tiled roofs, a hotel with red banners and f
 black lanterns that light up in the evening. Pedestrians and cyclists pass by (busiest around lunchtime), and
 customers walk along the street to the door and leave the same way.
 
-**Controls:** drag to pan, scroll or pinch to zoom, ⟲ ⟳ buttons or `Q` / `E` to rotate the 3D view in 90° steps
-(the walls facing the camera drop to low stubs), tap or click to place. `Space` pauses, `1`–`3` set the speed,
+**Controls:** drag to pan, scroll or pinch to zoom, rotate the 3D view freely: right-drag (or Shift + drag) with a mouse,
+twist two fingers on a phone, hold ⟲ ⟳ or `Q` / `E` to spin (tap for 45° steps), 🧭 or `R` to go back to the start
+(walls and houses facing the camera drop out of the way), tap or click to place. `Space` pauses, `1`–`3` set the speed,
 `B` opens Build, `Esc` cancels. Right-click also cancels the build tool.
 
 ## Real rewards (coins → coupons)

@@ -422,7 +422,8 @@ function updateStreet(t) {
   const c = Math.cos(VIEW.angle), s = Math.sin(VIEW.angle);
   for (const r of Street.rows) {
     const [nx, nz] = r.normal;
-    r.group.visible = (c * nx + s * nz) + (-s * nx + c * nz) <= 0.15;
+    // hide a row as soon as it starts turning toward the camera (free rotation passes through every angle)
+    r.group.visible = (c * nx + s * nz) + (-s * nx + c * nz) <= -0.4;
   }
   // lanterns glow in the evening; flags wave
   const hour = Game.state.time / 60;

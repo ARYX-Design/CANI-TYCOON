@@ -6,7 +6,7 @@ const WALL_H = 96;
 
 // View rotation around the room centre (3D view only). Everything that maps tiles to the screen goes
 // through iso()/screenToTile(), so taps, labels and effects follow the rotated camera automatically.
-const VIEW = { angle: 0, target: 0, cx: 0, cy: 0 };
+const VIEW = { angle: 0, target: 0, cx: 0, cy: 0, spin: 0 };
 
 function iso(x, y, z = 0) {
   if (VIEW.angle) {

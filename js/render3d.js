@@ -1156,9 +1156,23 @@ function updateWalls() {
   }
 }
 
+// Tap the buttons: turn 45°. Drags, twists and held keys turn freely through turnView.
 function rotateView(dir) {
   if (!R3.active) return;
-  VIEW.target += dir * Math.PI / 2;
+  VIEW.target += dir * Math.PI / 4;
+  sfx('select');
+}
+
+function turnView(delta) {
+  if (!R3.active) return;
+  VIEW.target += delta;
+  VIEW.angle = VIEW.target;
+}
+
+// back to the original angle, the short way round
+function resetRotation() {
+  if (!R3.active) return;
+  VIEW.target = Math.round(VIEW.angle / (Math.PI * 2)) * Math.PI * 2;
   sfx('select');
 }
 
@@ -1169,10 +1183,12 @@ function renderR3() {
   const t = Game.t;
   const n = gridSize();
   VIEW.cx = VIEW.cy = n / 2;
-  VIEW.angle += (VIEW.target - VIEW.angle) * 0.18;
+  VIEW.angle += (VIEW.target - VIEW.angle) * Math.min(1, (VIEW.frameDt || 1 / 60) * 11);   // smooth, frame-rate independent
   if (Math.abs(VIEW.target - VIEW.angle) < 0.001) VIEW.angle = VIEW.target;
   // keep angles small after full turns
   if (VIEW.angle === VIEW.target && Math.abs(VIEW.angle) >= Math.PI * 2) VIEW.angle = VIEW.target = VIEW.angle % (Math.PI * 2);
+  const needle = document.getElementById('compassNeedle');
+  if (needle) needle.style.transform = `rotate(${-VIEW.angle}rad)`;
   R3.world.rotation.y = VIEW.angle;
   const ca = Math.cos(VIEW.angle), sa = Math.sin(VIEW.angle);
   R3.world.position.set(n / 2 - (ca * n / 2 + sa * n / 2), 0, n / 2 - (-sa * n / 2 + ca * n / 2));

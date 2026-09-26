@@ -286,6 +286,8 @@ button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 body.view3d #rotateBtns { display: flex; }
 #rotateBtns button { width: 44px; height: 44px; border-radius: 50%; background: var(--panel); border: 1px solid var(--line); font-size: 22px; box-shadow: 0 6px 18px rgba(0,0,0,0.35); }
 #rotateBtns button:active { transform: scale(0.92); }
+#rotateBtns button { touch-action: none; user-select: none; -webkit-user-select: none; }
+#compassNeedle { display: inline-block; font-size: 20px; transition: transform 0.05s linear; }
 
 /* ---------- build hint ---------- */
 #buildHint {

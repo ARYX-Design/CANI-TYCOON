@@ -502,7 +502,7 @@ function showIntro() {
       <li>💇 <b>Hire</b> barbers and give them any name you like ✏️. Unlock <b>services</b> and buy <b>upgrades</b>.</li>
       <li>🏙️ <b>Expand</b> from the garage to a corner shop, downtown, a studio and finally the <b>Cani Empire HQ</b>.</li>
     </ul>
-    <p class="muted small">Drag to move the camera, scroll / pinch to zoom, ⟲ ⟳ (or Q / E) to rotate. Space pauses, 1-3 set speed.</p>`,
+    <p class="muted small">Drag to move the camera, scroll / pinch to zoom, ⟲ ⟳ or Q / E to rotate (tap for 45°, hold to spin), right-drag or twist two fingers to rotate freely, 🧭 to reset. Space pauses, 1-3 set speed.</p>`,
     [{ label: "Let's cut some hair ✂️", cls: 'primary', fn: () => { unlockAudio(); Game.state.introSeen = true; Game.paused = false; } }]);
 }
 
