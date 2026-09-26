@@ -65,6 +65,31 @@
   </nav>
 
   <div id="modal" class="hidden"><div class="modal-card" id="modalCard"></div></div>
+  <div id="bootError" hidden>
+    <div class="boot-card">
+      <b>The shop didn't open 😕</b>
+      <p>Something went wrong while starting the game. Reloading usually fixes it – your progress is saved.</p>
+      <button class="btn" id="bootReload">Reload the game</button>
+      <code id="bootErrorText"></code>
+    </div>
+  </div>
+  <script>
+    // shows a readable message instead of a blank screen if the game fails to start
+    (function () {
+      var shown = false;
+      function fail(msg) {
+        if (window.__caniStarted || shown) return;
+        shown = true;
+        var box = document.getElementById('bootError');
+        document.getElementById('bootErrorText').textContent = msg || 'The game took too long to start.';
+        box.hidden = false;
+        document.getElementById('bootReload').onclick = function () { location.reload(); };
+      }
+      window.addEventListener('error', function (e) { fail((e.message || 'Error') + (e.lineno ? ' (line ' + e.lineno + ')' : '')); });
+      window.addEventListener('unhandledrejection', function (e) { fail(String(e.reason && e.reason.message || e.reason)); });
+      setTimeout(function () { fail(); }, 12000);
+    })();
+  </script>
 
   <script src="js/vendor/three.min.js"></script>
   <script src="js/vendor/qrcode.js"></script>

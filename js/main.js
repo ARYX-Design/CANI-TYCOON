@@ -194,4 +194,10 @@
   requestAnimationFrame(frame);
 
   window.CANI = Game; // handy for debugging in the console
+  window.__caniStarted = true;
+  window.__caniSave = saveGame;
+  // save before the page is reloaded or updated
+  window.addEventListener('pagehide', () => saveGame());
+  document.addEventListener('visibilitychange', () => { if (document.hidden) saveGame(); });
+  try { if (window.claude && window.claude.hot && window.claude.hot.snapshot) window.claude.hot.snapshot(() => { saveGame(); return {}; }); } catch (e) { /* not in the viewer */ }
 })();

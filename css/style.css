@@ -368,3 +368,11 @@ body.view3d #rotateBtns { display: flex; }
   #toasts { top: 96px; width: calc(100% - 32px); }
   .toast { text-align: center; }
 }
+
+/* ---------- start-up failure message ---------- */
+#bootError { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; background: rgba(8, 8, 10, 0.85); }
+#bootError[hidden] { display: none; }
+.boot-card { width: min(420px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 20px; display: grid; gap: 10px; }
+.boot-card b { font-size: 18px; }
+.boot-card p { margin: 0; color: var(--muted); line-height: 1.4; }
+.boot-card code { font-size: 11px; color: #ff9b9b; word-break: break-word; white-space: pre-wrap; }
