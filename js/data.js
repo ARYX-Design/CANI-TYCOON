@@ -159,22 +159,31 @@ const ORIGINS = {
 };
 
 // Short things people say, in their own language
+// 70% of the people in town are Slovenian, the rest Albanian
+const SLOVENIAN_SHARE = 0.7;
+
 const PHRASES = {
   al: {
     greet: ['Mirëdita!', 'Tungjatjeta!', 'Si je, mjeshtër?', 'Një fade, të lutem!'],
     happy: ['Faleminderit!', 'Shumë bukur!', 'Perfekt!', 'Super, vëlla!'],
     ok: ['Mirë.', 'Ok, faleminderit.'],
-    angry: ['Shumë ngadalë!', 'Po iki!', 'S\'kam kohë!'],
+    angry: ['Shumë ngadalë!', 'Po iki!', "S'kam kohë!"],
     full: ["S'ka vend...", 'Plot është!'],
     next: ['I radhës!', 'Urdhëro!', 'Ulu këtu!'],
+    chat: ['Pak më shkurt anash.', 'Si zakonisht, të lutem.', 'Sot bën vapë!'],
+    barberChat: ['Mos lëviz, vëlla.', 'Do të dalë bukur!', 'Pak xhel?'],
+    pay: ['Sa kushton?', 'Urdhëro paratë.', 'Me kartë, a bën?'],
   },
   si: {
-    greet: ['Dober dan!', 'Živjo!', 'Kje je Cani?', 'Samo malo skrajšat!'],
-    happy: ['Hvala!', 'Super frizura!', 'Odlično!', 'Kot nov sem!'],
-    ok: ['V redu.', 'Hvala, adijo.'],
-    angry: ['Prepočasi!', 'Grem drugam!', 'Nimam časa!'],
-    full: ['Polno je...', 'Ni prostora!'],
-    next: ['Naslednji!', 'Izvolite!', 'Kar sedite!'],
+    greet: ['Dober dan!', 'Živjo!', 'Kje je Cani?', 'Samo malo skrajšat!', 'Zdravo, a je prosto?', 'Lep pozdrav!', 'Dobro jutro!', 'Pa smo spet tu!'],
+    happy: ['Hvala!', 'Super frizura!', 'Odlično!', 'Kot nov sem!', 'Najlepša hvala!', 'Punca bo vesela!', 'Se vidimo čez mesec!', 'Top, res fajn!'],
+    ok: ['V redu.', 'Hvala, adijo.', 'Bo že.', 'Hvala, lep dan.'],
+    angry: ['Prepočasi!', 'Grem drugam!', 'Nimam časa!', 'To je predolgo!', 'Pa kaj je to?!', 'Nikoli več!'],
+    full: ['Polno je...', 'Ni prostora!', 'Pridem jutri.', 'Joj, gneča...'],
+    next: ['Naslednji!', 'Izvolite!', 'Kar sedite!', 'Kdo je na vrsti?', 'Pridite, prosim!'],
+    chat: ['Malo krajše ob straneh, prosim.', 'Kot vedno, hvala.', 'A si gledal tekmo?', 'Danes je vroče, a ne?', 'Brado samo malo porežite.', 'Kaj pravite na vreme?', 'Ne prekratko, prosim!', 'A bo Dončić spet zmagal?'],
+    barberChat: ['Ne premikaj se.', 'Bo lepo, boš videl!', 'Malo gela?', 'Kako pa služba?', 'Še malo, pa sva gotova.', 'Fade kot iz kataloga!'],
+    pay: ['Koliko sem dolžan?', 'Lahko s kartico?', 'Izvolite, hvala!', 'Drobiž imam, samo trenutek.'],
   },
 };
 

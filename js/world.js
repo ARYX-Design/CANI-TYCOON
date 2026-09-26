@@ -327,7 +327,7 @@ function sellItem(item) {
 // ---------- staff ----------
 
 function randomPerson() {
-  const origin = Math.random() < 0.5 ? 'al' : 'si';
+  const origin = Math.random() < SLOVENIAN_SHARE ? 'si' : 'al';
   const female = Math.random() < 0.42;
   const hairStyle = pick(female ? HAIR_STYLES_F : HAIR_STYLES_M);
   return {
@@ -1012,7 +1012,19 @@ function updateCustomer(c, dt, dtMin) {
       if (c.inService) {
         c.progress += dtMin / c.duration;
         if (Math.random() < dt * 4 && c.service.station === 'chair') addHairBit(c);
-        if (Math.random() < dt * 0.9) sfx(c.service.id === 'buzz' || c.service.id === 'fade' ? 'buzz' : c.service.station === 'sink' ? 'water' : 'snip', 0.35);
+        // steady snip-snip (or clipper buzz / running water) while the barber works
+        c.sndT = (c.sndT === undefined ? 0 : c.sndT) - dt;
+        if (c.sndT <= 0) {
+          const clip = c.service.id === 'buzz' || c.service.id === 'fade';
+          sfx(clip ? 'buzz' : c.service.station === 'sink' ? 'water' : 'snip', 0.85);
+          c.sndT = clip ? rand(0.5, 0.8) : c.service.station === 'sink' ? rand(0.9, 1.3) : rand(0.35, 0.6);
+        }
+        // a bit of small talk in the chair
+        c.chatT = (c.chatT === undefined ? rand(2, 4) : c.chatT) - dt;
+        if (c.chatT <= 0) {
+          c.chatT = rand(6, 11);
+          if (Math.random() < 0.5) say(c, 'chat'); else if (c.cutBy) say(c.cutBy, 'barberChat');
+        }
         if (c.progress >= 1) finishService(c);
       }
       break;
@@ -1032,7 +1044,7 @@ function updateCustomer(c, dt, dtMin) {
       if (c.state === 'done' && c.payWait > PAY_WAIT.done) walkOut(c);
       break;
     case 'toPay':
-      if (moveAgent(c, dt)) { c.state = 'atRegister'; c.regWait = 0; c.arrivedAt = Game.t; c.dir = 1; }
+      if (moveAgent(c, dt)) { c.state = 'atRegister'; c.regWait = 0; c.arrivedAt = Game.t; c.dir = 1; if (Math.random() < 0.6) say(c, 'pay'); }
       break;
     case 'atRegister':
       c.regWait += dtMin;
@@ -1202,7 +1214,9 @@ function updateBarber(b, dt) {
 
 // Speech bubble in the speaker's own language
 function say(agent, kind, delay = 0) {
-  const lang = agent.origin && PHRASES[agent.origin] ? agent.origin : pick(['al', 'si']);
+  const origin = agent.origin || (agent.data && agent.data.origin);
+  const lang = origin && PHRASES[origin] ? origin : (Math.random() < SLOVENIAN_SHARE ? 'si' : 'al');
+  if (!PHRASES[lang][kind]) return;
   agent.say = { text: pick(PHRASES[lang][kind]), life: 2.6 + delay, delay };
 }
 

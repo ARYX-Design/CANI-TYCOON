@@ -99,15 +99,27 @@ function noiseHit(start, dur, { gain = 0.1, type = 'highpass', freq = 3000, q = 
 
 const SFX = {
   door(t) { tone(1318, t, 0.9, { gain: 0.07 }); tone(2636, t, 0.4, { gain: 0.02 }); tone(988, t + 0.22, 1.1, { gain: 0.07 }); tone(1976, t + 0.22, 0.4, { gain: 0.02 }); },
-  snip(t) { noiseHit(t, 0.035, { gain: 0.09, freq: 5000 }); noiseHit(t + 0.07, 0.03, { gain: 0.07, freq: 6000 }); },
+  // scissors: two crisp metallic snips
+  snip(t) {
+    noiseHit(t, 0.04, { gain: 0.2, type: 'bandpass', freq: 5200, q: 3 });
+    tone(4200, t, 0.03, { type: 'triangle', gain: 0.03 });
+    noiseHit(t + 0.11, 0.035, { gain: 0.16, type: 'bandpass', freq: 5800, q: 3 });
+    tone(4600, t + 0.11, 0.03, { type: 'triangle', gain: 0.025 });
+  },
+  // clippers: a short buzzing pass
   buzz(t) {
-    tone(118, t, 0.32, { type: 'sawtooth', gain: 0.035, filter: 1200, attack: 0.02 });
-    tone(236, t, 0.32, { type: 'square', gain: 0.012, filter: 1500, attack: 0.02 });
+    tone(118, t, 0.5, { type: 'sawtooth', gain: 0.07, filter: 1400, attack: 0.03 });
+    tone(236, t, 0.5, { type: 'square', gain: 0.025, filter: 1800, attack: 0.03 });
+    noiseHit(t, 0.5, { gain: 0.025, type: 'bandpass', freq: 3000, q: 1 });
   },
   water(t) { noiseHit(t, 0.5, { gain: 0.035, type: 'bandpass', freq: 1400, q: 0.8, sweepTo: 2600 }); },
+  // register: drawer "ka-chunk", bell "ching", coins
   cash(t) {
-    noiseHit(t, 0.06, { gain: 0.12, type: 'bandpass', freq: 2500, q: 2 });
-    tone(2093, t + 0.04, 0.5, { gain: 0.06 }); tone(2637, t + 0.1, 0.6, { gain: 0.06 }); tone(3136, t + 0.16, 0.7, { gain: 0.04 });
+    noiseHit(t, 0.08, { gain: 0.25, type: 'lowpass', freq: 900 });
+    tone(160, t, 0.12, { gain: 0.18, slideTo: 90 });
+    noiseHit(t + 0.08, 0.06, { gain: 0.2, type: 'bandpass', freq: 2600, q: 2 });
+    tone(2093, t + 0.1, 0.7, { gain: 0.12 }); tone(2637, t + 0.16, 0.8, { gain: 0.11 }); tone(3136, t + 0.22, 0.9, { gain: 0.08 });
+    [0.34, 0.4, 0.47].forEach((d, i) => tone(1760 + i * 400, t + d, 0.12, { type: 'square', gain: 0.03, filter: 5000 }));
   },
   coin(t) { tone(1760, t, 0.12, { type: 'square', gain: 0.025, filter: 4000 }); tone(2637, t + 0.05, 0.18, { type: 'square', gain: 0.025, filter: 4000 }); },
   select(t) { tone(880, t, 0.07, { type: 'triangle', gain: 0.06 }); },
@@ -139,7 +151,7 @@ const SFX = {
 function sfx(name, volume = 1) {
   if (!Sound.ctx || !Sound.sfxOn || !SFX[name]) return;
   const now = Sound.ctx.currentTime;
-  const gap = { snip: 0.12, buzz: 0.25, water: 0.4, coin: 0.04, door: 0.5 }[name] || 0.03;
+  const gap = { snip: 0.1, buzz: 0.3, water: 0.5, coin: 0.04, door: 0.5 }[name] || 0.03;
   if (now - (Sound.lastPlayed[name] || 0) < gap) return;
   Sound.lastPlayed[name] = now;
   if (volume < 1) {

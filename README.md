@@ -54,8 +54,9 @@ You can also serve the folder, for example with `npx serve .`.
   If they wait too long they leave angry and your reputation ★ drops.
 - **Build**: place barber chairs, waiting seats, a cash register (+tips), wash sinks, color stations and decor.
   Decor raises *appeal*, which brings more customers and makes them happier. Some decor also makes customers more patient.
-- **People**: customers and barbers have Albanian 🇦🇱 and Slovenian 🇸🇮 names, and they chat in their own language
-  in speech bubbles ("Mirëdita!", "Dober dan!", "Faleminderit!", "Hvala!"). Tap or click anyone to see who they are and what they're doing.
+- **People**: about 70% of customers and barbers are Slovenian 🇸🇮 and 30% Albanian 🇦🇱, with names, and they chat in their own language
+  in speech bubbles ("Dober dan!", "Malo krajše ob straneh, prosim.", "Koliko sem dolžan?", "Mirëdita!"), including
+  small talk in the chair and at the register. Tap or click anyone to see who they are and what they're doing.
 - **Staff**: hire barbers, each with their own skill, speed and daily wage. New candidates show up every morning.
   Rename any barber, Cani included, with the ✏️ button in the Staff panel or the Rename button on their card.
 - **Services**: new services unlock as you grow. Some need a Wash Sink or Color Station. Pick a Budget, Normal or Premium price level.
