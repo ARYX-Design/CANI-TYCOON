@@ -431,7 +431,8 @@ function updateStreet(t) {
   (Street.flags || []).forEach((f, i) => { f.rotation.y = Math.PI / 2 + Math.sin(t * 2 + i) * 0.15; });
 
   // spawn walkers and cyclists: busiest around lunchtime
-  const busy = Game.nightMode ? 0.15 : 0.3 + 0.7 * Math.exp(-Math.pow((hour - 13) / 4, 2));
+  const day = Game.state.dayInfo;
+  const busy = (Game.nightMode ? 0.15 : 0.3 + 0.7 * Math.exp(-Math.pow((hour - 13) / 4, 2))) * (day ? Math.min(1.8, day.mult) : 1);
   Street.spawnT -= dt;
   if (Street.spawnT <= 0 && Street.traffic.length < 18) {
     spawnTraffic();

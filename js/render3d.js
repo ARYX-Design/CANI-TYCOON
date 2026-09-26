@@ -495,13 +495,10 @@ const Models = {
     bx(g, 0.15, 0.3, 0.7, 0.45, 0, 16, '#3d2c22');
     bx(g, 0.45, 0.45, 0.1, 0.1, 16, 5, '#222');
     bx(g, 0.1, 0.45, 0.8, 0.06, 21, 32, '#111', { shiny: 60 });
-    const screen = mesh(new THREE.PlaneGeometry(0.72, 28 * U), new THREE.MeshLambertMaterial({ color: 0x222222, emissive: 0x3a7bd5 }), false);
+    const screen = mesh(new THREE.PlaneGeometry(0.72, 28 * U), tvMaterial(), false);
     screen.position.set(0.5, 37 * U, 0.512);
     g.add(screen);
-    g.userData.tick = t => {
-      const on = !utilityOff('power');
-      screen.material.emissive.setHSL(((t * 40) % 360) / 360, 0.55, on ? 0.45 : 0);
-    };
+    g.userData.tick = t => updateTv(t);
   },
   coffee(g) {
     bx(g, 0.12, 0.2, 0.76, 0.6, 0, 24, '#495057');
@@ -593,6 +590,24 @@ const Models = {
     };
   },
 };
+
+// All TVs share one screen that plays the ads
+let _tv = null;
+function tvMaterial() {
+  if (!_tv) {
+    const tex = canvasTex(320, 200, () => {});
+    _tv = { tex, mat: new THREE.MeshBasicMaterial({ map: tex }), last: -1 };
+  }
+  return _tv.mat;
+}
+function updateTv(t) {
+  if (!_tv || t - _tv.last < 0.08) return;
+  _tv.last = t;
+  const { ctx, canvas } = _tv.tex.userData;
+  if (utilityOff('power')) { ctx.fillStyle = '#050505'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+  else paintAd(ctx, canvas.width, canvas.height, currentAd(t), t);
+  _tv.tex.needsUpdate = true;
+}
 
 function buildItemModel(type) {
   const g = new THREE.Group();
@@ -1080,9 +1095,16 @@ function syncFx(t) {
     const targets = (sel.state === 'waiting' || sel.state === 'enter') ? freeStation(sel.service.station) : sel.state === 'done' ? registers() : [];
     targets.forEach(it => place(it.x, it.y, '#50dc78', pulse));
   }
-  // build tool
+  // build tool: faint glow on every allowed tile, strong green/red under the finger
   const hv = Renderer.hover;
   _ghosts.forEach(g => { g.visible = false; });
+  if (UI.tool && UI.tool.mode === 'place') {
+    for (const key of validTiles(UI.tool.type)) {
+      const [vx, vy] = key.split(',').map(Number);
+      if (hv && vx === hv.x && vy === hv.y) continue;
+      place(vx, vy, '#50dc78', 0.16);
+    }
+  }
   if (UI.tool && hv && inBounds(hv.x, hv.y)) {
     if (UI.tool.mode === 'place') {
       const ok = canPlace(UI.tool.type, hv.x, hv.y).ok;

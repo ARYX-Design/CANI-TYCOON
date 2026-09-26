@@ -30,7 +30,9 @@ function updateHUD(force) {
   $('#hudMoney').textContent = fmt(s.money);
   $('#hudMoney').classList.toggle('neg', s.money < 0);
   $('#hudRep').innerHTML = `${starsHTML(s.rep)} <b>${s.rep.toFixed(1)}</b>`;
-  $('#hudDay').textContent = `Day ${s.day} · ${clockStr(s.time)}`;
+  const di = s.dayInfo;
+  $('#hudDay').textContent = di ? `${di.icon} Day ${s.day} · ${di.name.slice(0, 3)} ${clockStr(s.time)}` : `Day ${s.day} · ${clockStr(s.time)}`;
+  $('#hudDay').title = di ? di.text : '';
   $('#hudStage').textContent = stage().name;
   const waiting = Game.customers.filter(c => c.state === 'waiting' || c.state === 'enter').length;
   $('#hudQueue').textContent = `👥 ${waiting} · ✂️ ${s.today.served} · 😞 ${s.today.lost}`;
@@ -531,6 +533,7 @@ function showDaySummary(sm) {
   const bills = sm.newBills.length
     ? `<h3 class="sub">🧾 New bills</h3><div class="bill-list">${sm.newBills.map(b => `<div><span>${BILL_TYPES[b.type].icon} ${BILL_TYPES[b.type].name}</span><span>${fmt(b.amount)} · due day ${b.due}</span></div>`).join('')}</div>`
     : '';
+  const tomorrow = sm.tomorrow ? `<p class="forecast forecast-${sm.tomorrow.kind}">Tomorrow: ${sm.tomorrow.icon} ${sm.tomorrow.text}</p>` : '';
   showModal(`<h2>🌙 Day ${sm.day} closed</h2>
     <div class="stats">
       <div><span>Haircuts</span><b>${fmt(sm.revenue)}</b></div>
@@ -541,7 +544,7 @@ function showDaySummary(sm) {
       <div><span>Served / lost</span><b>${sm.served} / ${sm.lost}</b></div>
       <div><span>Reputation</span><b>${sm.repEnd.toFixed(2)} ${repD >= 0 ? '▲' : '▼'}${Math.abs(repD).toFixed(2)}</b></div>
       <div><span>Cash · unpaid bills</span><b>${fmt(sm.money)} · <span class="${sm.unpaid ? 'neg' : ''}">${fmt(sm.unpaid)}</span></b></div>
-    </div>${bills}${tip ? `<p class="tip">${tip}</p>` : ''}`,
+    </div>${bills}${tomorrow}${tip ? `<p class="tip">${tip}</p>` : ''}`,
     [
       ...(sm.unpaid ? [{ label: '🧾 Pay bills', fn: () => { startDay(); openPanel('bills'); } }] : []),
       { label: `☀️ Open Day ${Game.state.day}`, cls: 'primary', fn: startDay },

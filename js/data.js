@@ -86,7 +86,8 @@ const SERVICES = [
 ];
 
 const UPGRADES = {
-  initiative: { name: 'Proactive Barbers', icon: '🙋', desc: 'A free barber calls the customer who has waited longest to a chair – no tapping needed.', costs: [450], stage: 0, skill: true },
+  initiative: { name: 'Proactive Barbers', icon: '🙋', desc: 'A free barber calls the customer who has waited longest to a chair – no tapping needed.', costs: [450], stage: 0, skill: true, learned: "They'll call waiting customers themselves." },
+  barberPay:  { name: 'Barbers Take Payment', icon: '💵', desc: 'When a cut is done, the barber takes the money right at the chair – no tapping needed.', costs: [600], stage: 0, skill: true, learned: "They'll take the money at the chair themselves." },
   receptionist: { name: 'Receptionist', icon: '🛎️', desc: 'Seats waiting customers for you.', costs: [1200], stage: 1, helper: true },
   cashier:   { name: 'Cashier',          icon: '🧾', desc: 'Sends finished customers to pay and rings them up.', costs: [1800], stage: 2, helper: true },
   cleaner:   { name: 'Cleaner',          icon: '🧹', desc: 'Sweeps hair off the floor.', costs: [700], stage: 1, helper: true },
@@ -104,6 +105,26 @@ const BILL_TYPES = {
   internet: { name: 'Internet & Phone', icon: '📶', note: 'Keeps the booking line open' },
   tax:      { name: 'Taxes',            icon: '🏛️', note: '10% of the week\'s income' },
 };
+
+// TV commercials (made-up Slovenian ads). Each runs for a few seconds.
+const TV_ADS = [
+  { brand: 'KRANJSKA KLOBASA', line: 'Prava kranjska – samo pri mesarju Janezu!', icon: '🌭', bg: '#b3202a', fg: '#ffffff' },
+  { brand: 'OBIŠČITE BLED', line: 'Jezero s pravljičnim otokom', icon: '🏝️', bg: '#1d6fa5', fg: '#ffffff' },
+  { brand: 'BABIČINA POTICA', line: 'Orehova potica – ta teden 20 % ceneje!', icon: '🍰', bg: '#7a4a2a', fg: '#fff3dc' },
+  { brand: 'RADIO GORENJC 97,3', line: 'Najboljša glasba na Gorenjskem', icon: '📻', bg: '#6a1b9a', fg: '#ffffff' },
+  { brand: 'CANI BARBERSHOP', line: 'Fade, brada, britje – brez naročanja!', icon: '✂️', bg: '#0b0b0c', fg: '#c9a24f' },
+  { brand: 'PLANICA', line: 'Skoki pod Poncami – pridi navijat!', icon: '🎿', bg: '#0d47a1', fg: '#ffffff' },
+  { brand: 'BLEJSKA KREMŠNITA', line: 'Original od leta 1953', icon: '🍮', bg: '#f4d35e', fg: '#3b2a00' },
+  { brand: 'TRIGLAV', line: 'Vsak pravi Slovenec enkrat na Triglav!', icon: '⛰️', bg: '#2e7d32', fg: '#ffffff' },
+  { brand: 'MLEKO IZ BOHINJA', line: 'Sveže vsak dan, iz planine na mizo', icon: '🥛', bg: '#e3f2fd', fg: '#0d3a66' },
+  { brand: 'KRANJ FEST', line: 'Koncerti v starem mestu vsak petek', icon: '🎸', bg: '#212121', fg: '#ff6f61' },
+];
+const currentAd = t => TV_ADS[Math.floor(t / 6) % TV_ADS.length];
+
+// Busy and quiet days: a weekday rhythm, plus rain and the odd festival in the old town
+const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const WEEKDAY_DEMAND = [0.75, 0.9, 1, 1, 1.25, 1.6, 0.6];
+const FESTIVALS = ['Kranj Summer Festival', 'Old Town Market Day', 'Prešeren Day Celebrations', 'Carnival in Kranj', 'Wedding Season'];
 
 const PRICE_LEVELS = [
   { name: 'Budget',  price: 0.8, demand: 1.3,  sat: 0.08 },

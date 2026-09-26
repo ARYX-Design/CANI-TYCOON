@@ -50,11 +50,11 @@ function newState() {
     introSeen: false,
   };
   const add = (type, x, y) => s.items.push({ id: s.nextId++, type, x, y });
-  add('barberChair', 2, 2);
+  add('barberChair', 2, 0);
   add('waitingChair', 0, 4);
   add('waitingChair', 0, 5);
   add('plant', 0, 0);
-  add('register', 4, 1);
+  add('register', 5, 2);
   return s;
 }
 
@@ -78,6 +78,7 @@ function initWorld(state) {
   state.nextBillId = state.nextBillId || 1;
   for (const k of Object.keys(UPGRADES)) if (state.upgrades[k] === undefined) state.upgrades[k] = 0;
   initRewards(state);
+  if (!state.dayInfo || state.dayInfo.day !== state.day) state.dayInfo = rollDay(state.day);
   Game.barbers = [];
   // saves from before names had origins
   state.barbers.forEach(b => {
@@ -173,14 +174,67 @@ function barberSkill(b) { return Math.min(5, b.skill + Game.state.upgrades.acade
 
 // ---------- placement ----------
 
+// ---------- where furniture may go ----------
+
+// the door tile and the tile inside it stay free so customers can get in
+function entranceZone(x, y) {
+  const d = doorTile();
+  return x === d.x && (y === 0 || y === 1);
+}
+
+function againstWall(x, y) {
+  const n = gridSize();
+  return x === 0 || y === 0 || x === n - 1 || y === n - 1;
+}
+
+const isStation = it => !!(it && ITEMS[it.type].station);
+
+// Layout rules (money, people and paths are checked in canPlace). Returns a reason, or null when fine.
+function placementRule(type, x, y) {
+  const def = ITEMS[type];
+  if (!inBounds(x, y)) return 'Outside the shop';
+  if (entranceZone(x, y)) return 'Keep the entrance free';
+  if (itemAt(x, y)) return 'Tile occupied';
+  if (def.station) {
+    if (!againstWall(x, y)) return `${def.name}s go against a wall, where the mirror and plumbing are`;
+    if (DIRS.some(([dx, dy]) => isStation(itemAt(x + dx, y + dy)))) return 'Leave a free tile between stations so the barbers have room';
+    const room = DIRS.filter(([dx, dy]) => walkable(x + dx, y + dy) && !entranceZone(x + dx, y + dy)).length;
+    if (room < 2) return 'A station needs space for the barber and the customer';
+  }
+  // don't box in a station that is already there
+  for (const [dx, dy] of DIRS) {
+    const st = itemAt(x + dx, y + dy);
+    if (!isStation(st)) continue;
+    const left = DIRS.filter(([ex, ey]) => { const tx = st.x + ex, ty = st.y + ey; return !(tx === x && ty === y) && walkable(tx, ty); }).length;
+    if (left < 1) return `That would leave no room for the barber at the ${ITEMS[st.type].name}`;
+  }
+  return null;
+}
+
+// Tiles where `type` may go (ignores money and people) – shown while placing
+let _validCache = { key: '', set: new Set() };
+function validTiles(type) {
+  const s = Game.state;
+  const key = type + '|' + s.stage + '|' + s.items.map(i => i.x + ',' + i.y).join(';');
+  if (_validCache.key === key) return _validCache.set;
+  const set = new Set(), n = gridSize();
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+    if (placementRule(type, x, y)) continue;
+    const reach = reachableFromDoor({ x, y });
+    const ok = [...s.items, { x, y }].every(it => DIRS.some(([dx, dy]) => reach.has((it.y + dy) * 100 + it.x + dx)));
+    if (ok) set.add(x + ',' + y);
+  }
+  _validCache = { key, set };
+  return set;
+}
+
 function canPlace(type, x, y) {
   const s = Game.state, def = ITEMS[type];
   if (!inBounds(x, y)) return { ok: false, reason: 'Outside the shop' };
   if (def.stage > s.stage) return { ok: false, reason: `Unlocks at ${STAGES[def.stage].name}` };
   if (def.coinCost ? s.coins < def.coinCost : s.money < itemCost(type)) return { ok: false, reason: def.coinCost ? `Needs ⭐${def.coinCost} Cani Coins` : 'Not enough money' };
-  const d = doorTile();
-  if (x === d.x && y === d.y) return { ok: false, reason: 'Keep the door clear' };
-  if (itemAt(x, y)) return { ok: false, reason: 'Tile occupied' };
+  const rule = placementRule(type, x, y);
+  if (rule) return { ok: false, reason: rule };
   const people = [...Game.customers, ...Game.barbers];
   if (people.some(p => Math.floor(p.x) === x && Math.floor(p.y) === y)) return { ok: false, reason: 'Someone is standing there' };
   if (people.some(p => p.path && p.path.some(t => t.x === x && t.y === y))) return { ok: false, reason: 'Someone is walking there' };
@@ -351,7 +405,7 @@ function buyUpgrade(key) {
   s.money -= cost;
   consumeArmed('upgrade20');
   s.upgrades[key]++;
-  toast(u.skill ? `${u.icon} Your barbers learned ${u.name}! They'll call waiting customers themselves.`
+  toast(u.skill ? `${u.icon} Your barbers learned ${u.name}! ${u.learned || ''}`
     : u.helper ? `${u.icon} ${u.name} hired! They'll handle that for you now.` : `${u.icon} ${u.name} upgraded to level ${s.upgrades[key]}!`);
   sfx('hire');
   return { ok: true };
@@ -397,7 +451,7 @@ function expandShop() {
 function spawnRatePerHour() {
   const s = Game.state;
   const decor = Math.min(decorScore(), 40);
-  return (effectActive('rushHour') ? 1.5 : 1) * (0.9 + s.rep * 0.75 + decor * 0.08) * (1 + s.stage * 0.5) *
+  return (s.dayInfo ? s.dayInfo.mult : 1) * (effectActive('rushHour') ? 1.5 : 1) * (0.9 + s.rep * 0.75 + decor * 0.08) * (1 + s.stage * 0.5) *
     (1 + s.upgrades.marketing * 0.2) * PRICE_LEVELS[s.priceLevel].demand;
 }
 
@@ -890,7 +944,7 @@ function updateCustomer(c, dt, dtMin) {
       break;
     case 'waiting':
       patienceTick(c, dtMin * (c.standing ? 1.5 : 1));
-      if (customerNeedsSeat(c) && !hasHelper('initiative')) hint('seat', `👆 ${c.name} is waiting! Tap them, then tap a free chair.`);
+      if (customerNeedsSeat(c) && !hasHelper('initiative') && !hasHelper('receptionist')) hint('seat', `👆 ${c.name} is waiting! Tap them, then tap a free chair.`);
       break;
     case 'toStation':
       c.alpha = Math.min(1, c.alpha + dt * 3);
@@ -920,6 +974,9 @@ function updateCustomer(c, dt, dtMin) {
       if (hasHelper('cashier')) {
         if (registers().length) { if (c.payWait > 3) sendToRegister(c); }
         else if (c.payWait > 4) collectAtChair(c);
+      } else if (hasHelper('barberPay')) {
+        // the barber takes the money at the chair
+        if (c.payWait > 3) collectAtChair(c);
       } else {
         hint(registers().length ? 'pay' : 'payChair', registers().length
           ? `💵 ${c.name} is done! Tap them, then tap the register.`
@@ -1142,11 +1199,31 @@ function endDay() {
   Game.piles = [];          // the night cleaner sweeps up
   Game.drops = [];
   s.day++;
+  s.dayInfo = rollDay(s.day);
+  summary.tomorrow = s.dayInfo;
   s.time = OPEN_TIME;
   s.today = freshToday(s.rep);
   s.candidates = genCandidates(3);
   saveGame();
   emit({ type: 'dayEnd', summary });
+}
+
+// ---------- busy and quiet days ----------
+
+function rollDay(day) {
+  const wd = (day - 1) % 7;
+  let mult = WEEKDAY_DEMAND[wd];
+  let rain = false, festival = null;
+  if (day > 1 && Math.random() < 0.22) { rain = true; mult *= 0.7; }
+  if (day > 2 && (wd === 4 || wd === 5) && Math.random() < 0.25) { festival = pick(FESTIVALS); mult *= 1.35; }
+  const name = WEEKDAYS[wd];
+  let icon, text;
+  if (festival) { icon = '🎉'; text = `${festival}! The old town is packed – expect lots of customers.`; }
+  else if (rain) { icon = '☔'; text = `Rainy ${name}. Fewer people are out today.`; }
+  else if (mult >= 1.4) { icon = '🔥'; text = `${name} rush – lots of customers today!`; }
+  else if (mult <= 0.8) { icon = '😴'; text = `Quiet ${name}. Fewer customers today.`; }
+  else { icon = '☀️'; text = `A normal ${name}.`; }
+  return { day, wd, name, mult, rain, festival, icon, text, kind: mult >= 1.3 ? 'busy' : mult <= 0.8 ? 'quiet' : 'normal' };
 }
 
 // ---------- bills ----------
@@ -1221,7 +1298,8 @@ function startDay() {
   newGoals(s);
   const bonus = 3 + Math.min(s.stage, 4);
   addCoins(bonus);
-  toast(`☀️ Opening bonus: +⭐${bonus} Cani Coins. New daily goals are in Rewards!`, 3200, 'hint');
+  toast(`${s.dayInfo.icon} ${s.dayInfo.text}`, 4000, s.dayInfo.kind === 'busy' ? 'hint' : '');
+  setTimeout(() => toast(`⭐ Opening bonus: +${bonus} Cani Coins. New daily goals are in Rewards!`, 3000), 1500);
   emit('dayStart');
 }
 

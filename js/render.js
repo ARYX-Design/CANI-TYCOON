@@ -64,6 +64,7 @@ const Renderer = {
     this.drawOverlays(ctx, t);
     ctx.restore();
     if (!is3d) this.drawDaylight(ctx);
+    this.drawRain(ctx);
     this.drawCoins(ctx);
   },
 
@@ -392,10 +393,17 @@ const Renderer = {
   },
 
   drawBuildHighlight(ctx) {
-    if (!UI.tool || !this.hover) return;
+    if (!UI.tool) return;
+    if (UI.tool.mode === 'place' && !(this.hover && inBounds(this.hover.x, this.hover.y))) {
+      for (const k of validTiles(UI.tool.type)) { const [vx, vy] = k.split(',').map(Number); tileDiamond(ctx, vx, vy, 'rgba(80,220,120,0.12)'); }
+      return;
+    }
+    if (!this.hover) return;
     const { x, y } = this.hover;
     if (!inBounds(x, y)) return;
     if (UI.tool.mode === 'place') {
+      // faint glow on every tile where this item is allowed
+      for (const k of validTiles(UI.tool.type)) { const [vx, vy] = k.split(',').map(Number); tileDiamond(ctx, vx, vy, 'rgba(80,220,120,0.12)'); }
       const ok = canPlace(UI.tool.type, x, y).ok;
       tileDiamond(ctx, x, y, ok ? 'rgba(80,220,120,0.35)' : 'rgba(230,57,70,0.4)', ok ? '#50dc78' : '#e63946');
     }
@@ -429,7 +437,7 @@ const Renderer = {
       if (customerNeedsSeat(c) && !autoSeated && c !== Game.selected) {
         const p = isoK(c.x, c.y, (c.sitting ? 17 : 14) + 70 + bounce);
         tapBadge(ctx, '👆', p.x, p.y, '#50dc78');
-      } else if (c.state === 'done' && !hasHelper('cashier')) {
+      } else if (c.state === 'done' && !hasHelper('cashier') && !hasHelper('barberPay')) {
         const p = isoK(c.x, c.y, 17 + 66 + bounce);
         tapBadge(ctx, '💵', p.x, p.y, c.payWait > 50 ? '#e63946' : '#f1c453');
       }
@@ -486,6 +494,23 @@ const Renderer = {
       ctx.fillText(f.text, f.x, f.y);
     }
     ctx.globalAlpha = 1;
+  },
+
+  // rainy days: streaks across the screen and a grey tint
+  drawRain(ctx) {
+    const d = Game.state.dayInfo;
+    if (!d || !d.rain || Game.nightMode) return;
+    ctx.fillStyle = 'rgba(70,80,100,0.12)';
+    ctx.fillRect(0, 0, this.w, this.h);
+    ctx.strokeStyle = 'rgba(200,215,235,0.35)'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    const t = Game.t;
+    for (let i = 0; i < 140; i++) {
+      const x = (hash2(i, 7) * this.w + t * 60) % this.w;
+      const y = (hash2(3, i) * this.h + t * (500 + hash2(i, i) * 200)) % this.h;
+      ctx.moveTo(x, y); ctx.lineTo(x - 3, y + 14);
+    }
+    ctx.stroke();
   },
 
   drawDaylight(ctx) {

@@ -36,6 +36,13 @@ You can also serve the folder, for example with `npx serve .`.
   (one claim per player/account). The list lives in `server/social.json`; add the barbershop's own account there too.
 - 🙋 **Proactive Barbers** (Upgrades → Barber skills, $450, available from the garage): a free barber calls the
   customer who has waited longest to a chair by themselves.
+- 💵 **Barbers Take Payment** (Barber skills, $600): when a cut is done the barber takes the money at the chair.
+- 🪑 **Placement rules:** barber chairs, sinks and color stations go **against a wall** (mirror and plumbing), with a
+  free tile between stations and room for the barber; nothing can block the entrance. While placing, every allowed
+  tile glows green and a blocked tap explains why.
+- 📅 **Busy and quiet days:** quiet Mondays and Sundays, busy Fridays and **Saturday rush**, rainy days (fewer
+  customers, rain on screen) and the odd festival in the old town. The end-of-day screen forecasts tomorrow.
+- 📺 TVs play made-up Slovenian commercials (Kranjska klobasa, Bled, potica, Planica, Radio Gorenjc…).
 - 🛎️ Later you can hire a **Receptionist**, **Cashier** and **Cleaner** (Upgrades tab) to automate these jobs.
 - 🎵 Lo-fi background music (it gets richer as the shop grows) and sound effects: door bell, scissors, clippers, register,
   coins, sweeping. Toggle them with the 🎵 button or in the ⚙️ menu.

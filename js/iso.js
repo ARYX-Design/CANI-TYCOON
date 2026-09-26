@@ -130,3 +130,30 @@ function drawLogoBadge(ctx, x, y, size, glow) {
   ctx.beginPath(); ctx.arc(x + size / 2, y + size / 2, size / 2 - ctx.lineWidth / 2, 0, Math.PI * 2); ctx.stroke();
   ctx.restore();
 }
+
+// Paint one TV commercial into a w×h canvas (t makes the ticker scroll)
+function paintAd(ctx, w, h, ad, t) {
+  ctx.fillStyle = ad.bg; ctx.fillRect(0, 0, w, h);
+  const g = ctx.createRadialGradient(w * 0.3, h * 0.3, 10, w * 0.5, h * 0.5, w * 0.7);
+  g.addColorStop(0, 'rgba(255,255,255,0.18)'); g.addColorStop(1, 'rgba(0,0,0,0.25)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+  const k = (t % 6) / 6;                          // progress through this ad
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = `${Math.round(h * 0.34)}px serif`;
+  ctx.fillText(ad.icon, w * 0.5, h * 0.3 + Math.sin(t * 3) * 3);
+  ctx.fillStyle = ad.fg;
+  ctx.font = `bold ${Math.round(h * 0.13)}px Fredoka, sans-serif`;
+  ctx.fillText(ad.brand, w / 2, h * 0.62);
+  ctx.globalAlpha = Math.min(1, k * 4);
+  ctx.font = `${Math.round(h * 0.075)}px Fredoka, sans-serif`;
+  ctx.fillText(ad.line, w / 2, h * 0.76);
+  ctx.globalAlpha = 1;
+  // ticker
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(0, h * 0.86, w, h * 0.14);
+  ctx.fillStyle = '#ffd60a'; ctx.font = `bold ${Math.round(h * 0.07)}px Fredoka, sans-serif`; ctx.textAlign = 'left';
+  const tick = 'AKCIJA · NOVO · POPUST · AKCIJA · NOVO · POPUST · ';
+  const off = (t * 40) % (w * 1.2);
+  ctx.fillText(tick + tick, -off, h * 0.93);
+  ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.font = `${Math.round(h * 0.06)}px sans-serif`;
+  ctx.fillText('OGLAS', w - 6, h * 0.08);
+}

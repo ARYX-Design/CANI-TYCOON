@@ -118,12 +118,16 @@ const ItemSprites = {
   tv(ctx, x, y, t) {
     box(ctx, x + 0.15, y + 0.3, 0.7, 0.45, 0, 16, '#3d2c22');
     box(ctx, x + 0.45, y + 0.45, 0.1, 0.1, 16, 5, '#222');
-    const hue = (t * 40) % 360;
-    box(ctx, x + 0.1, y + 0.45, 0.8, 0.06, 21, 32, '#111', { left: `hsl(${hue},55%,55%)` });
-    const p = iso(x + 0.5, y + 0.51, 37);
-    ctx.fillStyle = 'rgba(255,255,255,0.55)';
-    ctx.font = 'bold 8px sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText('⚽', p.x, p.y + 2);
+    const ad = currentAd(t);
+    const off = typeof utilityOff === 'function' && utilityOff('power');
+    box(ctx, x + 0.1, y + 0.45, 0.8, 0.06, 21, 32, '#111', { left: off ? '#050505' : ad.bg });
+    if (!off) {
+      const p = iso(x + 0.5, y + 0.51, 37);
+      ctx.font = '11px serif'; ctx.textAlign = 'center';
+      ctx.fillText(ad.icon, p.x, p.y + 1);
+      ctx.fillStyle = ad.fg; ctx.font = 'bold 4px Fredoka, sans-serif';
+      ctx.fillText(ad.brand.slice(0, 14), p.x, p.y + 8);
+    }
   },
 
   coffee(ctx, x, y, t) {
