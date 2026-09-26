@@ -49,7 +49,7 @@
   window.addEventListener('keyup', e => { if ('qQeE'.includes(e.key)) VIEW.spin = 0; });
   window.addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT') return;
-    if (e.key === 'Escape') { if (UI.tool) setTool(null); else if (Game.selected) Game.selected = null; else closePanel(); }
+    if (e.key === 'Escape') { if (UI.tool) setTool(null); else if (Game.selected || Game.selectedItem) { Game.selected = null; Game.selectedItem = null; } else closePanel(); }
     if (e.key === ' ') { Game.paused = !Game.paused; e.preventDefault(); }
     if (['1', '2', '3'].includes(e.key)) { Game.paused = false; Game.speed = +e.key; }
     if (e.key === 'b') openPanel('build');
@@ -179,18 +179,27 @@
   // ---------- loop ----------
   let last = performance.now(), saveT = 0;
   function frame(now) {
-    const rawDt = Math.min(0.25, (now - last) / 1000);
+    // the first frame's timestamp can be slightly earlier than `last`; never run time backwards
+    const rawDt = Math.max(0, Math.min(0.25, (now - last) / 1000));
     const dt = Math.min(0.05, rawDt);
     last = now;
-    update(dt);
+    // keep the loop alive even if one part fails, so the game never freezes on a blank screen
+    requestAnimationFrame(frame);
+    const step = (name, fn) => {
+      try { fn(); } catch (e) {
+        frameErrors[name] = (frameErrors[name] || 0) + 1;
+        if (frameErrors[name] === 1) { console.error(e); toast(`⚠️ Something went wrong (${name}): ${e.message}`, 5000, 'warn'); }
+      }
+    };
+    step('game', () => update(dt));
     if (VIEW.spin && R3.active) turnView(VIEW.spin * rawDt * 1.6);
     VIEW.frameDt = rawDt;
-    Renderer.draw();
-    updateHUD();
+    step('drawing', () => Renderer.draw());
+    step('hud', () => updateHUD());
     saveT += dt;
     if (saveT > 20 && !Game.nightMode) { saveT = 0; saveGame(); }
-    requestAnimationFrame(frame);
   }
+  const frameErrors = {};
   requestAnimationFrame(frame);
 
   window.CANI = Game; // handy for debugging in the console

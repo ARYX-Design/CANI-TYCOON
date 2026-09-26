@@ -123,6 +123,14 @@ const SFX = {
   sell(t) { tone(660, t, 0.1, { type: 'triangle', gain: 0.06 }); tone(440, t + 0.06, 0.14, { type: 'triangle', gain: 0.06 }); },
   hire(t) { [523, 659, 784].forEach((f, i) => tone(f, t + i * 0.08, 0.25, { type: 'triangle', gain: 0.06 })); },
   fanfare(t) { [523, 659, 784, 1046, 784, 1046].forEach((f, i) => tone(f, t + i * 0.12, 0.35, { type: 'square', gain: 0.035, filter: 3000 })); },
+  // sad trombone "wah wah wah waaah" and a slammed door
+  walkout(t) {
+    [[392, 0, 0.28], [370, 0.3, 0.28], [349, 0.6, 0.28], [330, 0.9, 0.7]].forEach(([f, d, len], i) => {
+      tone(f, t + d, len, { type: 'sawtooth', gain: 0.05, filter: 1100, attack: 0.03, slideTo: i === 3 ? 290 : f * 0.97 });
+    });
+    tone(70, t + 1.55, 0.25, { gain: 0.25, slideTo: 40 });
+    noiseHit(t + 1.55, 0.12, { gain: 0.14, type: 'lowpass', freq: 700 });
+  },
   bell(t) { tone(2637, t, 0.25, { gain: 0.05 }); tone(3520, t + 0.02, 0.2, { gain: 0.03 }); tone(2637, t + 0.14, 0.35, { gain: 0.05 }); tone(3520, t + 0.16, 0.3, { gain: 0.03 }); },
   click(t) { tone(1200, t, 0.03, { type: 'square', gain: 0.02, filter: 3000 }); },
 };

@@ -87,6 +87,7 @@ function inspectState(a) {
 function updateInspector() {
   const el = $('#inspect');
   const a = Game.selected;
+  if (!a && Game.selectedItem) { itemInspector(el, Game.selectedItem); return; }
   if (!a) { if (!el.hidden) { el.hidden = true; UI.inspectKey = ''; } return; }
   el.hidden = false;
   const st = inspectState(a);
@@ -116,6 +117,28 @@ function updateInspector() {
   }
 }
 
+// Card for a tapped piece of furniture: move it or remove it
+function itemInspector(el, item) {
+  if (!Game.state.items.includes(item)) { Game.selectedItem = null; el.hidden = true; UI.inspectKey = ''; return; }
+  el.hidden = false;
+  const def = ITEMS[item.type];
+  const busy = itemInUse(item);
+  const key = ['item', item.id, busy].join('|');
+  if (key === UI.inspectKey) return;
+  UI.inspectKey = key;
+  const refund = Math.floor((def.coinCost || def.cost) * 0.5);
+  const tags = [def.station ? 'Station' : '', def.seat ? 'Seat' : '', def.register ? 'Register' : '', def.decor ? `+${def.decor} appeal` : ''].filter(Boolean);
+  el.innerHTML = `<button class="insp-close" data-insp="close" aria-label="Close">✕</button>
+    <div class="insp-head"><span class="insp-mood">${def.icon}</span>
+      <div><div class="insp-name">${def.name}</div><div class="insp-sub">${tags.join(' · ') || 'Decoration'}</div></div></div>
+    <div class="insp-row">${def.desc}</div>
+    ${busy ? '<div class="insp-row muted">In use right now – you can move or remove it when it is free.</div>' : ''}
+    <div class="insp-actions">
+      <button class="btn small" data-insp="moveItem" ${busy ? 'disabled' : ''}>📦 Move</button>
+      <button class="btn small danger" data-insp="removeItem" ${busy ? 'disabled' : ''}>🗑️ Remove (+${def.coinCost ? '⭐' + refund : fmt(refund)})</button>
+    </div>`;
+}
+
 function customerActions(c) {
   if (c.state === 'waiting' || c.state === 'enter') return `<div class="insp-actions"><span class="muted small">Tap a glowing chair, or</span><button class="btn small" data-insp="seat">💺 Nearest chair</button></div>`;
   if (c.state === 'done') return registers().length
@@ -139,7 +162,14 @@ function handleInspectClick(e) {
   if (b.dataset.insp === 'collect' && c) { r = collectAtChair(c); Game.selected = null; }
   if (b.dataset.insp === 'ring' && c) { r = ringUp(c.register); Game.selected = null; }
   if (r && !r.ok && r.reason) { sfx('error'); toast(r.reason, 2200, 'warn'); }
-  if (b.dataset.insp === 'close') Game.selected = null;
+  if (b.dataset.insp === 'close') { Game.selected = null; Game.selectedItem = null; }
+  const it = Game.selectedItem;
+  if (b.dataset.insp === 'moveItem' && it) { setTool({ mode: 'move', type: it.type, itemId: it.id }); Game.selectedItem = null; }
+  if (b.dataset.insp === 'removeItem' && it) {
+    const rr = sellItem(it);
+    if (!rr.ok) toast(rr.reason, 2000, 'warn');
+    Game.selectedItem = null;
+  }
   if (b.dataset.insp === 'rename' && Game.selected && Game.selected.barber) {
     UI.renaming = Game.selected.data.id;
     if (UI.panel !== 'staff') openPanel('staff'); else renderPanel();
@@ -204,7 +234,7 @@ function buildPanel() {
   const counts = {};
   s.items.forEach(i => { counts[i.type] = (counts[i.type] || 0) + 1; });
   return `<div class="panel-note">Appeal <b>${decorScore()}</b> · Seats <b>${s.items.filter(i => ITEMS[i.type].seat).length}</b> · Chairs <b>${s.items.filter(i => ITEMS[i.type].station === 'chair').length}</b> · Barbers <b>${s.barbers.length}</b></div>
-    <button class="card sell-card${UI.tool && UI.tool.mode === 'sell' ? ' selected' : ''}" data-action="sell"><div class="card-icon">💰</div><div class="card-main"><div class="card-title">Sell furniture</div><div class="card-desc">Tap an item to sell it for 50% of its price.</div></div></button>
+    <button class="card sell-card${UI.tool && UI.tool.mode === 'sell' ? ' selected' : ''}" data-action="sell"><div class="card-icon">🗑️</div><div class="card-main"><div class="card-title">Remove furniture</div><div class="card-desc">Tap items to remove them – you get 50% of the price back. Tip: tap any furniture in the shop to move or remove it.</div></div></button>
     <div class="grid">${cards}</div>`;
 }
 
@@ -454,7 +484,9 @@ function setTool(tool) {
   if (window.innerWidth < 760) closePanel();
   hint.classList.remove('hidden');
   hint.innerHTML = tool.mode === 'sell'
-    ? `<span>💰 <b>Sell mode</b> — tap furniture to sell it</span><button class="btn small" data-hint="cancel">Done</button>`
+    ? `<span>🗑️ <b>Remove mode</b> — tap furniture to remove it (50% back)</span><button class="btn small" data-hint="cancel">Done</button>`
+    : tool.mode === 'move'
+    ? `<span>📦 Moving <b>${ITEMS[tool.type].name}</b> — tap a glowing tile</span><button class="btn small" data-hint="cancel">Cancel</button>`
     : `<span>${ITEMS[tool.type].icon} Placing <b>${ITEMS[tool.type].name}</b> (${fmt(ITEMS[tool.type].cost)}) — tap a tile</span><button class="btn small" data-hint="cancel">Done</button>`;
   if (UI.panel === 'build') renderPanel();
 }
@@ -466,6 +498,11 @@ function toolClick(tile) {
     const r = placeItem(tool.type, tile.x, tile.y);
     if (!r.ok) toast(r.reason, 1800, 'warn');
     else if (Game.state.money < ITEMS[tool.type].cost) setTool(null);
+  } else if (tool.mode === 'move') {
+    const item = Game.state.items.find(i => i.id === tool.itemId);
+    const r = item ? moveItem(item, tile.x, tile.y) : { ok: false };
+    if (!r.ok) { if (r.reason) toast(r.reason, 1800, 'warn'); }
+    else { setTool(null); Game.selectedItem = item; toast(`📦 ${ITEMS[item.type].name} moved`); }
   } else if (tool.mode === 'sell') {
     const it = itemAt(tile.x, tile.y);
     if (!it) return;

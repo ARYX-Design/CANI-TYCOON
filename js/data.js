@@ -119,7 +119,7 @@ const TV_ADS = [
   { brand: 'MLEKO IZ BOHINJA', line: 'Sveže vsak dan, iz planine na mizo', icon: '🥛', bg: '#e3f2fd', fg: '#0d3a66' },
   { brand: 'KRANJ FEST', line: 'Koncerti v starem mestu vsak petek', icon: '🎸', bg: '#212121', fg: '#ff6f61' },
 ];
-const currentAd = t => TV_ADS[Math.floor(t / 6) % TV_ADS.length];
+const currentAd = t => TV_ADS[((Math.floor(t / 6) % TV_ADS.length) + TV_ADS.length) % TV_ADS.length];
 
 // Busy and quiet days: a weekday rhythm, plus rain and the odd festival in the old town
 const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];

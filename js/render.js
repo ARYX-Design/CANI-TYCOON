@@ -340,6 +340,7 @@ const Renderer = {
   },
 
   drawSelection(ctx, t) {
+    if (Game.selectedItem && !R3.active) tileDiamond(ctx, Game.selectedItem.x, Game.selectedItem.y, `rgba(241,196,83,${0.35 + Math.sin(t * 5) * 0.12})`, '#f1c453');
     const a = Game.selected;
     if (!a) return;
     const p = iso(a.x, a.y);
@@ -394,23 +395,24 @@ const Renderer = {
 
   drawBuildHighlight(ctx) {
     if (!UI.tool) return;
-    if (UI.tool.mode === 'place' && !(this.hover && inBounds(this.hover.x, this.hover.y))) {
-      for (const k of validTiles(UI.tool.type)) { const [vx, vy] = k.split(',').map(Number); tileDiamond(ctx, vx, vy, 'rgba(80,220,120,0.12)'); }
+    const placing = UI.tool.mode === 'place' || UI.tool.mode === 'move';
+    if (placing && !(this.hover && inBounds(this.hover.x, this.hover.y))) {
+      for (const k of toolTiles(UI.tool)) { const [vx, vy] = k.split(',').map(Number); tileDiamond(ctx, vx, vy, 'rgba(80,220,120,0.12)'); }
       return;
     }
     if (!this.hover) return;
     const { x, y } = this.hover;
     if (!inBounds(x, y)) return;
-    if (UI.tool.mode === 'place') {
+    if (placing) {
       // faint glow on every tile where this item is allowed
-      for (const k of validTiles(UI.tool.type)) { const [vx, vy] = k.split(',').map(Number); tileDiamond(ctx, vx, vy, 'rgba(80,220,120,0.12)'); }
-      const ok = canPlace(UI.tool.type, x, y).ok;
+      for (const k of toolTiles(UI.tool)) { const [vx, vy] = k.split(',').map(Number); tileDiamond(ctx, vx, vy, 'rgba(80,220,120,0.12)'); }
+      const ok = toolAllows(UI.tool, x, y).ok;
       tileDiamond(ctx, x, y, ok ? 'rgba(80,220,120,0.35)' : 'rgba(230,57,70,0.4)', ok ? '#50dc78' : '#e63946');
     }
   },
 
   drawGhost(ctx, t) {
-    if (!UI.tool || UI.tool.mode !== 'place' || !this.hover) return;
+    if (!UI.tool || !(UI.tool.mode === 'place' || UI.tool.mode === 'move') || !this.hover) return;
     const { x, y } = this.hover;
     if (!inBounds(x, y) || itemAt(x, y)) return;
     ctx.globalAlpha = 0.6;

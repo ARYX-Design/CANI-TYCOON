@@ -38,6 +38,8 @@ You can also serve the folder, for example with `npx serve .`.
 - 🙋 **Proactive Barbers** (Upgrades → Barber skills, $450, available from the garage): a free barber calls the
   customer who has waited longest to a chair by themselves.
 - 💵 **Barbers Take Payment** (Barber skills, $600): when a cut is done the barber takes the money at the chair.
+- 📦 **Move / remove furniture:** tap any furniture (plants, TV, chairs…) to open its card, then **Move** it to a
+  glowing tile or **Remove** it for 50% back. The Build tab also has a Remove tool for clearing several items.
 - 🪑 **Placement rules:** barber chairs, sinks and color stations go **against a wall** (mirror and plumbing), with a
   free tile between stations and room for the barber; nothing can block the entrance. While placing, every allowed
   tile glows green and a blocked tap explains why.

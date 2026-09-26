@@ -228,11 +228,11 @@ function validTiles(type) {
   return set;
 }
 
-function canPlace(type, x, y) {
+function canPlace(type, x, y, opts = {}) {
   const s = Game.state, def = ITEMS[type];
   if (!inBounds(x, y)) return { ok: false, reason: 'Outside the shop' };
   if (def.stage > s.stage) return { ok: false, reason: `Unlocks at ${STAGES[def.stage].name}` };
-  if (def.coinCost ? s.coins < def.coinCost : s.money < itemCost(type)) return { ok: false, reason: def.coinCost ? `Needs ⭐${def.coinCost} Cani Coins` : 'Not enough money' };
+  if (!opts.free && (def.coinCost ? s.coins < def.coinCost : s.money < itemCost(type))) return { ok: false, reason: def.coinCost ? `Needs ⭐${def.coinCost} Cani Coins` : 'Not enough money' };
   const rule = placementRule(type, x, y);
   if (rule) return { ok: false, reason: rule };
   const people = [...Game.customers, ...Game.barbers];
@@ -265,10 +265,55 @@ function placeItem(type, x, y) {
   return r;
 }
 
-function sellItem(item) {
-  if (item.reservedBy || item.occupant || Game.customers.some(c => c.register === item && c.state !== 'leaving')) return { ok: false, reason: 'In use right now' };
+const itemInUse = item => !!(item.reservedBy || item.occupant || Game.customers.some(c => c.register === item && c.state !== 'leaving'));
+
+// Try `item` on another tile (free of charge); the item is lifted off its own tile while checking
+function canMoveTo(item, x, y) {
+  if (itemInUse(item)) return { ok: false, reason: 'In use right now – try again when it is free' };
+  if (item.x === x && item.y === y) return { ok: true };
   const s = Game.state;
   s.items = s.items.filter(i => i !== item);
+  const r = canPlace(item.type, x, y, { free: true });
+  s.items.push(item);
+  return r;
+}
+
+function moveItem(item, x, y) {
+  const r = canMoveTo(item, x, y);
+  if (!r.ok) return r;
+  item.x = x; item.y = y;
+  sfx('place');
+  emit('items');
+  return { ok: true };
+}
+
+// Build tools: which tiles are allowed, and whether one tile is ok right now
+function toolTiles(tool) {
+  if (tool.mode === 'place') return validTiles(tool.type);
+  if (tool.mode === 'move') {
+    const s = Game.state, item = s.items.find(i => i.id === tool.itemId);
+    if (!item) return new Set();
+    s.items = s.items.filter(i => i !== item);
+    const set = validTiles(tool.type);
+    s.items.push(item);
+    return set;
+  }
+  return new Set();
+}
+
+function toolAllows(tool, x, y) {
+  if (tool.mode === 'move') {
+    const item = Game.state.items.find(i => i.id === tool.itemId);
+    return item ? canMoveTo(item, x, y) : { ok: false };
+  }
+  return canPlace(tool.type, x, y);
+}
+
+function sellItem(item) {
+  if (itemInUse(item)) return { ok: false, reason: 'In use right now' };
+  const s = Game.state;
+  s.items = s.items.filter(i => i !== item);
+  if (Game.selectedItem === item) Game.selectedItem = null;
   const def = ITEMS[item.type];
   const refund = Math.floor((def.coinCost || def.cost) * 0.5);
   if (def.coinCost) s.coins += refund; else s.money += refund;
@@ -838,6 +883,7 @@ function boostService(c) {
 // One entry point for taps on the shop floor
 function handleWorldTap(agent, item, tile) {
   const sel = Game.selected;
+  Game.selectedItem = null;
   // 1. a selected customer is being directed somewhere
   if (sel && !sel.barber && item) {
     if ((sel.state === 'waiting' || sel.state === 'enter') && ITEMS[item.type].station) {
@@ -877,14 +923,15 @@ function handleWorldTap(agent, item, tile) {
   // 3. sweep hair
   const pile = Game.piles.find(p => p.x === tile.x && p.y === tile.y);
   if (pile) { sweep(pile); return; }
-  // 4. tapping a free station calls the next customer
-  if (item && ITEMS[item.type].station && !item.reservedBy) {
-    const r = callNextTo(item);
-    if (r.ok) sfx('go'); else if (Game.customers.some(c => c.state === 'waiting')) toast(r.reason, 2000, 'warn');
+  // 4. tapping a free station calls the next customer waiting for it
+  if (item && ITEMS[item.type].station && !item.reservedBy && callNextTo(item).ok) {
+    sfx('go');
     Game.selected = null;
     return;
   }
+  // 5. otherwise tapping furniture opens its card (move / remove)
   Game.selected = null;
+  if (item) { Game.selectedItem = item; sfx('select'); }
 }
 
 function hint(key, text) {
@@ -1027,7 +1074,7 @@ function walkOut(c) {
   s.today.walkouts = (s.today.walkouts || 0) + 1;
   s.today.unpaidCuts = (s.today.unpaidCuts || 0) + c.bill.price;
   say(c, 'angry');
-  sfx('angry');
+  sfx('walkout');
   const p = iso(c.x, c.y, 70);
   addFloater(p.x, p.y, `💸 Left without paying! −$${c.bill.price}`, '#ff6b6b', 2.2);
   hint('walkout', '💸 Nobody took their money, so they left without paying. Tap customers with 💵 quickly, or learn Barbers Take Payment.');

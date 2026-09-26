@@ -1098,16 +1098,17 @@ function syncFx(t) {
   // build tool: faint glow on every allowed tile, strong green/red under the finger
   const hv = Renderer.hover;
   _ghosts.forEach(g => { g.visible = false; });
-  if (UI.tool && UI.tool.mode === 'place') {
-    for (const key of validTiles(UI.tool.type)) {
+  const placing = UI.tool && (UI.tool.mode === 'place' || UI.tool.mode === 'move');
+  if (placing) {
+    for (const key of toolTiles(UI.tool)) {
       const [vx, vy] = key.split(',').map(Number);
       if (hv && vx === hv.x && vy === hv.y) continue;
       place(vx, vy, '#50dc78', 0.16);
     }
   }
   if (UI.tool && hv && inBounds(hv.x, hv.y)) {
-    if (UI.tool.mode === 'place') {
-      const ok = canPlace(UI.tool.type, hv.x, hv.y).ok;
+    if (placing) {
+      const ok = toolAllows(UI.tool, hv.x, hv.y).ok;
       place(hv.x, hv.y, ok ? '#50dc78' : '#e63946', 0.4);
       if (!itemAt(hv.x, hv.y)) {
         let g = _ghosts.get(UI.tool.type);
@@ -1128,6 +1129,7 @@ function syncFx(t) {
       }
     } else if (UI.tool.mode === 'sell' && itemAt(hv.x, hv.y)) place(hv.x, hv.y, '#e63946', 0.5);
   }
+  if (Game.selectedItem) place(Game.selectedItem.x, Game.selectedItem.y, '#f1c453', 0.35 + Math.sin(t * 5) * 0.12);
   // selection ring
   if (!_ring) {
     _ring = new THREE.Mesh(new THREE.RingGeometry(0.27, 0.34, 32), new THREE.MeshBasicMaterial({ color: 0xf1c453, transparent: true, opacity: 0.9, depthWrite: false }));
