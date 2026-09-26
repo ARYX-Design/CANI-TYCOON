@@ -384,7 +384,8 @@ const Renderer = {
     for (const a of [...Game.customers, ...Game.barbers]) {
       if ((a.alpha ?? 1) < 0.5) continue;
       const p = iso(a.x, a.y, a.sitting ? 3 : 0);
-      if (w.x > p.x - 13 && w.x < p.x + 13 && w.y > p.y - 56 && w.y < p.y + 5) {
+      const tall = R3.active ? 76 : 56, wide = R3.active ? 17 : 13;
+      if (w.x > p.x - wide && w.x < p.x + wide && w.y > p.y - tall && w.y < p.y + 5) {
         if (!best || a.x + a.y > best.x + best.y) best = a;
       }
     }
@@ -426,6 +427,9 @@ const Renderer = {
 
   drawOverlays(ctx, t) {
     const hovered = this.hoverAgent;
+    // 3D characters are taller, so labels sit higher above their heads
+    const K = R3.active ? 1.4 : 1;
+    const isoK = (x, y, z) => iso(x, y, z * K);
     const bounce = Math.abs(Math.sin(t * 5)) * 4;
     for (const it of this.targetArrows || []) {
       const p = iso(it.x + 0.5, it.y + 0.5, 62 + bounce);
@@ -436,10 +440,10 @@ const Renderer = {
     for (const c of Game.customers) {
       if (c.alpha < 0.5) continue;
       if (customerNeedsSeat(c) && !hasHelper('receptionist') && c !== Game.selected) {
-        const p = iso(c.x, c.y, (c.sitting ? 17 : 14) + 70 + bounce);
+        const p = isoK(c.x, c.y, (c.sitting ? 17 : 14) + 70 + bounce);
         tapBadge(ctx, '👆', p.x, p.y, '#50dc78');
       } else if (c.state === 'done' && !hasHelper('cashier')) {
-        const p = iso(c.x, c.y, 17 + 66 + bounce);
+        const p = isoK(c.x, c.y, 17 + 66 + bounce);
         tapBadge(ctx, '💵', p.x, p.y, c.payWait > 50 ? '#e63946' : '#f1c453');
       }
     }
@@ -451,7 +455,7 @@ const Renderer = {
     }
     for (const c of Game.customers) {
       if ((c.state === 'waiting' || c.state === 'enter') && c.alpha > 0.5) {
-        const p = iso(c.x, c.y, (c.sitting ? 14 : 0) + 52);
+        const p = isoK(c.x, c.y, (c.sitting ? 14 : 0) + 52);
         const f = clamp(c.patience / c.maxPatience, 0, 1);
         roundRect(ctx, p.x - 11, p.y - 3, 22, 5, 2, 'rgba(0,0,0,0.55)');
         roundRect(ctx, p.x - 10, p.y - 2, 20 * f, 3, 1.5, f > 0.5 ? '#52b788' : f > 0.25 ? '#f4a261' : '#e63946');
@@ -459,7 +463,7 @@ const Renderer = {
         ctx.fillText(serviceIcon(c.service), p.x, p.y - 6);
       }
       if (c.state === 'atStation' && c.inService) {
-        const p = iso(c.x, c.y, 76);
+        const p = isoK(c.x, c.y, 76);
         roundRect(ctx, p.x - 18, p.y - 4, 36, 7, 3, 'rgba(0,0,0,0.6)');
         roundRect(ctx, p.x - 17, p.y - 3, 34 * clamp(c.progress, 0, 1), 5, 2.5, '#f1c453');
         ctx.font = 'bold 8px Fredoka, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
@@ -469,18 +473,18 @@ const Renderer = {
     }
     for (const b of Game.barbers) {
       if (UI.showNames || b === hovered || b === Game.selected) {
-        const p = iso(b.x, b.y, 66);
+        const p = isoK(b.x, b.y, 66);
         nameTag(ctx, `✂ ${b.data.name}`, p.x, p.y, b.owner ? '#f1c453' : '#fff');
       }
     }
     for (const c of Game.customers) {
       if (c !== hovered && c !== Game.selected) continue;
-      const p = iso(c.x, c.y, (c.sitting ? 17 : 14) + 50);
+      const p = isoK(c.x, c.y, (c.sitting ? 17 : 14) + 50);
       nameTag(ctx, `${ORIGINS[c.origin].flag} ${c.name}`, p.x, p.y - 10, '#fff');
     }
     for (const a of [...Game.customers, ...Game.barbers]) {
       if (!a.say || a.say.delay > 0 || (a.alpha ?? 1) < 0.5) continue;
-      const p = iso(a.x, a.y, (a.sitting ? 17 : 14) + 52);
+      const p = isoK(a.x, a.y, (a.sitting ? 17 : 14) + 52);
       speechBubble(ctx, a.say.text, p.x + 10, p.y - 12, Math.min(1, a.say.life * 2));
     }
     for (const f of Game.floaters) {

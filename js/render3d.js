@@ -594,117 +594,238 @@ function buildItemModel(type) {
 
 // ---------- people ----------
 
-const _faceTex = new Map();
-function faceTexture(p) {
-  const key = [p.skin, p.mood, p.female ? 1 : 0, p.hair].join('|');
-  if (_faceTex.has(key)) return _faceTex.get(key);
+const HIP = 0.46;
+const PERSON_SCALE = 1.32;   // characters are drawn larger than the furniture grid for readability
+
+// mouth, cheeks and lips are painted; eyes, brows and nose are real geometry
+const _mouthTex = new Map();
+function mouthMaterial(p) {
+  const key = [p.skin, p.mood, p.female ? 1 : 0].join('|');
+  if (_mouthTex.has(key)) return _mouthTex.get(key);
   const tex = canvasTex(64, 64, (ctx) => {
     ctx.fillStyle = p.skin; ctx.fillRect(0, 0, 64, 64);
-    const angry = p.mood === 'angry', happy = p.mood === 'happy';
-    ctx.fillStyle = '#1d1520';
-    for (const ex of [20, 44]) {
-      if (happy) { ctx.lineWidth = 3; ctx.strokeStyle = '#1d1520'; ctx.beginPath(); ctx.arc(ex, 30, 4, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke(); }
-      else { roundRect(ctx, ex - 3, 24, 6, 9, 3, '#1d1520'); ctx.fillStyle = '#fff'; ctx.fillRect(ex - 1, 25, 2, 2); ctx.fillStyle = '#1d1520'; }
+    const g = ctx.createRadialGradient(32, 26, 6, 32, 30, 44);
+    g.addColorStop(0, 'rgba(255,255,255,0.10)'); g.addColorStop(1, 'rgba(0,0,0,0.10)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, 64, 64);
+    const happy = p.mood === 'happy', angry = p.mood === 'angry';
+    if (p.female || happy) {
+      ctx.fillStyle = 'rgba(240,110,120,0.35)';
+      ctx.beginPath(); ctx.ellipse(12, 40, 6, 3.5, 0, 0, 7); ctx.ellipse(52, 40, 6, 3.5, 0, 0, 7); ctx.fill();
     }
-    ctx.strokeStyle = shade(p.hair || '#333', -0.2); ctx.lineWidth = 3;
+    ctx.strokeStyle = '#6b2e2a'; ctx.lineWidth = 3; ctx.lineCap = 'round';
     ctx.beginPath();
-    if (angry) { ctx.moveTo(14, 16); ctx.lineTo(25, 21); ctx.moveTo(50, 16); ctx.lineTo(39, 21); }
-    else { ctx.moveTo(14, 19); ctx.lineTo(25, 17); ctx.moveTo(39, 17); ctx.lineTo(50, 19); }
-    ctx.stroke();
-    ctx.fillStyle = shade(p.skin, -0.18); ctx.fillRect(30, 34, 4, 7);
-    if (p.female || happy) { ctx.fillStyle = 'rgba(240,110,120,0.35)'; ctx.beginPath(); ctx.ellipse(13, 41, 5, 3, 0, 0, 7); ctx.ellipse(51, 41, 5, 3, 0, 0, 7); ctx.fill(); }
-    ctx.strokeStyle = '#6b2e2a'; ctx.lineWidth = 3; ctx.beginPath();
-    if (happy) ctx.arc(32, 44, 7, 0.15 * Math.PI, 0.85 * Math.PI);
-    else if (angry) ctx.arc(32, 56, 7, 1.2 * Math.PI, 1.8 * Math.PI);
+    if (happy) { ctx.arc(32, 44, 8, 0.15 * Math.PI, 0.85 * Math.PI); }
+    else if (angry) ctx.arc(32, 58, 8, 1.2 * Math.PI, 1.8 * Math.PI);
     else { ctx.moveTo(26, 50); ctx.lineTo(38, 50); }
     ctx.stroke();
-    if (p.female) { ctx.fillStyle = 'rgba(200,60,80,0.6)'; ctx.beginPath(); ctx.ellipse(32, 50, 5, 2.2, 0, 0, 7); ctx.fill(); }
+    if (happy) { ctx.fillStyle = '#fff'; ctx.fillRect(27, 47, 10, 2); }
+    if (p.female) { ctx.fillStyle = 'rgba(200,50,75,0.65)'; ctx.beginPath(); ctx.ellipse(32, 50, 6, 2.6, 0, 0, 7); ctx.fill(); }
   });
   const m = new THREE.MeshLambertMaterial({ map: tex });
-  _faceTex.set(key, m);
+  _mouthTex.set(key, m);
   return m;
 }
 
-const HIP = 0.46;
+function limb(parent, x, y, w, h, d, material, pivotY = 0) {
+  const pivot = new THREE.Group();
+  pivot.position.set(x, y, 0);
+  const m = mesh(new THREE.BoxGeometry(w, h, d), material);
+  m.position.y = pivotY - h / 2;
+  pivot.add(m);
+  parent.add(pivot);
+  return pivot;
+}
 
 function buildPerson(p) {
   const g = new THREE.Group();
   const body = new THREE.Group();
+  body.scale.setScalar(PERSON_SCALE);
   g.add(body);
-  const legCol = p.dress ? shade(p.skin, -0.05) : p.pants;
+  const skin = mat(p.skin), skinDark = mat(shade(p.skin, -0.08));
+  const shirt = mat(p.shirt), shirtDark = mat(shade(p.shirt, -0.12));
+  const legM = mat(p.dress ? shade(p.skin, -0.04) : p.pants);
+  const shoeM = mat(p.shoes || '#2a2230'), soleM = mat('#1a1a1a');
+
+  // legs: thigh -> knee -> shin -> shoe
   const legs = [-1, 1].map(side => {
-    const leg = new THREE.Group();
-    leg.position.set(side * 0.09, HIP, 0);
-    const m = mesh(new THREE.BoxGeometry(0.13, 0.42, 0.14), mat(legCol));
-    m.position.y = -0.21;
-    const shoe = mesh(new THREE.BoxGeometry(0.14, 0.08, 0.21), mat(p.shoes || '#2a2230'));
-    shoe.position.set(0, -0.40, 0.03);
-    leg.add(m, shoe);
-    body.add(leg);
-    return leg;
+    const thigh = limb(body, side * 0.09, HIP, 0.14, 0.23, 0.15, legM);
+    const knee = new THREE.Group();
+    knee.position.y = -0.23;
+    thigh.add(knee);
+    const shin = mesh(new THREE.BoxGeometry(0.13, 0.2, 0.14), p.dress ? legM : mat(shade(p.pants, -0.04)));
+    shin.position.y = -0.1;
+    const shoe = mesh(new THREE.BoxGeometry(0.15, 0.075, 0.25), shoeM);
+    shoe.position.set(0, -0.2, 0.045);
+    const sole = mesh(new THREE.BoxGeometry(0.155, 0.02, 0.255), soleM, false);
+    sole.position.set(0, -0.235, 0.045);
+    knee.add(shin, shoe, sole);
+    return { thigh, knee };
   });
   if (p.dress) {
-    const skirt = mesh(new THREE.CylinderGeometry(0.2, 0.27, 0.3, 10), mat(shade(p.shirt, -0.15)));
-    skirt.position.y = HIP - 0.05;
+    const skirt = mesh(new THREE.CylinderGeometry(0.19, 0.28, 0.32, 12), mat(shade(p.shirt, -0.15)));
+    skirt.position.y = HIP - 0.07;
     body.add(skirt);
+  } else {
+    const hips = mesh(new THREE.BoxGeometry(0.34, 0.1, 0.21), legM);
+    hips.position.y = HIP + 0.02;
+    const belt = mesh(new THREE.BoxGeometry(0.35, 0.035, 0.215), mat('#2b2118'), false);
+    belt.position.y = HIP + 0.07;
+    const buckle = mesh(new THREE.BoxGeometry(0.05, 0.03, 0.01), mat('#d4a82c', { shiny: 90 }), false);
+    buckle.position.set(0, HIP + 0.07, 0.11);
+    body.add(hips, belt, buckle);
   }
-  const torso = mesh(new THREE.BoxGeometry(0.38, 0.42, 0.22), mat(p.shirt));
-  torso.position.y = HIP + 0.21;
-  body.add(torso);
+
+  // torso with rounded shoulders and a collar
+  const tw = p.female ? 0.33 : 0.37;
+  const torso = mesh(new THREE.BoxGeometry(tw, 0.34, 0.21), shirt);
+  torso.position.y = HIP + 0.26;
+  const chest = mesh(new THREE.BoxGeometry(tw - 0.06, 0.2, 0.03), shirt);
+  chest.position.set(0, HIP + 0.3, 0.11);
+  const shoulders = mesh(new THREE.CylinderGeometry(0.075, 0.075, tw + 0.07, 10), shirt);
+  shoulders.rotation.z = Math.PI / 2;
+  shoulders.position.y = HIP + 0.4;
+  body.add(torso, chest, shoulders);
   if (p.stripes) for (let k = 0; k < 3; k++) {
-    const s = mesh(new THREE.BoxGeometry(0.385, 0.03, 0.225), mat('#ffffff'), false);
-    s.position.y = HIP + 0.1 + k * 0.12;
+    const s = mesh(new THREE.BoxGeometry(tw + 0.005, 0.03, 0.215), mat('#ffffff'), false);
+    s.position.y = HIP + 0.15 + k * 0.1;
     body.add(s);
   }
+  const collarM = p.barber ? mat('#ffffff') : shirtDark;
+  for (const s of [-1, 1]) {
+    const c = mesh(new THREE.BoxGeometry(0.09, 0.05, 0.02), collarM, false);
+    c.position.set(s * 0.045, HIP + 0.43, 0.105);
+    c.rotation.z = s * 0.5;
+    body.add(c);
+  }
   if (p.barber) {
-    const apron = mesh(new THREE.BoxGeometry(0.3, 0.38, 0.02), mat(p.owner ? '#1b1b1f' : '#f4f6f8'));
-    apron.position.set(0, HIP + 0.17, 0.12);
+    const apronM = mat(p.owner ? '#1b1b1f' : '#f4f6f8');
+    const apron = mesh(new THREE.BoxGeometry(0.3, 0.44, 0.02), apronM);
+    apron.position.set(0, HIP + 0.16, 0.122);
     body.add(apron);
-    const pocket = mesh(new THREE.BoxGeometry(0.16, 0.08, 0.01), mat(p.owner ? '#f1c453' : '#dde3ea'), false);
-    pocket.position.set(0, HIP + 0.12, 0.132);
-    body.add(pocket);
+    for (const s of [-1, 1]) {
+      const strap = mesh(new THREE.BoxGeometry(0.035, 0.18, 0.015), apronM, false);
+      strap.position.set(s * 0.1, HIP + 0.42, 0.115);
+      body.add(strap);
+    }
+    const pocket = mesh(new THREE.BoxGeometry(0.2, 0.09, 0.012), mat(p.owner ? '#2c2c33' : '#dde3ea'), false);
+    pocket.position.set(0, HIP + 0.08, 0.135);
+    const comb = mesh(new THREE.BoxGeometry(0.018, 0.1, 0.01), mat('#e63946'), false);
+    comb.position.set(-0.05, HIP + 0.13, 0.142);
+    const scissorsPocket = mesh(new THREE.BoxGeometry(0.02, 0.09, 0.01), mat('#c0c6cc', { shiny: 90 }), false);
+    scissorsPocket.position.set(0.04, HIP + 0.13, 0.142);
+    body.add(pocket, comb, scissorsPocket);
+    if (p.owner) {
+      const trim = mesh(new THREE.BoxGeometry(0.302, 0.02, 0.022), mat('#f1c453', { shiny: 60 }), false);
+      trim.position.set(0, HIP - 0.05, 0.123);
+      body.add(trim);
+    }
   }
+
+  // arms: shoulder -> elbow; short sleeves, bare forearms
   const arms = [-1, 1].map(side => {
-    const arm = new THREE.Group();
-    arm.position.set(side * 0.245, HIP + 0.4, 0);
-    const m = mesh(new THREE.BoxGeometry(0.1, 0.36, 0.12), mat(shade(p.shirt, -0.08)));
-    m.position.y = -0.18;
-    const hand = mesh(new THREE.BoxGeometry(0.09, 0.09, 0.1), mat(p.skin));
-    hand.position.y = -0.39;
-    arm.add(m, hand);
-    body.add(arm);
-    return arm;
+    const shoulder = limb(body, side * (tw / 2 + 0.05), HIP + 0.4, 0.11, 0.19, 0.12, shirt);
+    const elbow = new THREE.Group();
+    elbow.position.y = -0.19;
+    shoulder.add(elbow);
+    const fore = mesh(new THREE.BoxGeometry(0.09, 0.17, 0.1), p.barber || p.female ? skin : shirtDark);
+    fore.position.y = -0.085;
+    const hand = mesh(new THREE.BoxGeometry(0.095, 0.09, 0.1), skin);
+    hand.position.y = -0.21;
+    const thumb = mesh(new THREE.BoxGeometry(0.03, 0.05, 0.035), skin, false);
+    thumb.position.set(-side * 0.055, -0.19, 0.03);
+    elbow.add(fore, hand, thumb);
+    if (p.watch && side === -1) {
+      const w = mesh(new THREE.BoxGeometry(0.1, 0.03, 0.11), mat('#222'), false);
+      w.position.y = -0.15;
+      elbow.add(w);
+    }
+    return { shoulder, elbow };
   });
-  let scissors = null;
+  let tool = null;
   if (p.barber) {
-    scissors = new THREE.Group();
-    const b1 = mesh(new THREE.BoxGeometry(0.015, 0.02, 0.14), mat('#d0d5db', { shiny: 100 }), false);
+    tool = new THREE.Group();
+    const bladeM = mat('#dfe4ea', { shiny: 100 });
+    const b1 = mesh(new THREE.BoxGeometry(0.018, 0.018, 0.16), bladeM, false);
     const b2 = b1.clone();
-    b1.rotation.y = 0.25; b2.rotation.y = -0.25;
-    scissors.add(b1, b2);
-    scissors.position.set(0, -0.44, 0.06);
-    arms[1].add(scissors);
+    b1.rotation.y = 0.22; b2.rotation.y = -0.22;
+    const ring1 = mesh(new THREE.TorusGeometry(0.025, 0.008, 6, 10), mat('#e63946'), false);
+    ring1.position.set(0.02, 0, -0.08);
+    const ring2 = ring1.clone(); ring2.position.x = -0.02;
+    tool.add(b1, b2, ring1, ring2);
+    tool.position.set(0, -0.26, 0.07);
+    tool.userData.blades = [b1, b2];
+    arms[1].elbow.add(tool);
   }
-  const neck = mesh(new THREE.BoxGeometry(0.12, 0.07, 0.12), mat(p.skin));
-  neck.position.y = HIP + 0.45;
+
+  // neck + head with modelled eyes, brows, nose and ears
+  const neck = mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.08, 10), skin);
+  neck.position.y = HIP + 0.47;
   body.add(neck);
   const head = new THREE.Group();
-  head.position.y = HIP + 0.63;
-  const skinM = mat(p.skin);
-  const headMesh = mesh(new THREE.BoxGeometry(0.34, 0.32, 0.3), [skinM, skinM, skinM, skinM, faceTexture(p), skinM]);
+  head.position.y = HIP + 0.66;
+  const headMesh = mesh(new THREE.BoxGeometry(0.34, 0.33, 0.31), [skin, skin, skin, skinDark, mouthMaterial(p), skin]);
   head.add(headMesh);
-  const earM = mat(shade(p.skin, -0.06));
-  for (const s of [-1, 1]) { const e = mesh(new THREE.BoxGeometry(0.04, 0.08, 0.06), earM, false); e.position.set(s * 0.18, -0.01, 0); head.add(e); }
+  const chin = mesh(new THREE.BoxGeometry(0.28, 0.04, 0.26), skin, false);
+  chin.position.set(0, -0.18, 0.01);
+  head.add(chin);
+  for (const s of [-1, 1]) {
+    const ear = mesh(new THREE.BoxGeometry(0.035, 0.09, 0.07), skinDark, false);
+    ear.position.set(s * 0.185, -0.01, -0.01);
+    head.add(ear);
+    if (p.female && p.earrings) {
+      const e = mesh(new THREE.SphereGeometry(0.018, 6, 6), mat('#f1c453', { shiny: 100 }), false);
+      e.position.set(s * 0.19, -0.07, 0);
+      head.add(e);
+    }
+  }
+  const eyeWhite = mat('#ffffff'), pupilM = mat('#1d1520'), browM = mat(shade(p.hair || '#333', -0.15));
+  const eyes = [], brows = [];
+  for (const s of [-1, 1]) {
+    const white = mesh(new THREE.BoxGeometry(0.075, 0.06, 0.012), eyeWhite, false);
+    white.position.set(s * 0.075, 0.03, 0.158);
+    const pupil = mesh(new THREE.BoxGeometry(0.038, 0.05, 0.012), pupilM, false);
+    pupil.position.set(s * 0.075 + 0.008, 0.028, 0.164);
+    const glint = mesh(new THREE.BoxGeometry(0.012, 0.012, 0.004), eyeWhite, false);
+    glint.position.set(s * 0.075 + 0.016, 0.042, 0.171);
+    const brow = mesh(new THREE.BoxGeometry(0.085, 0.022, 0.02), browM, false);
+    brow.position.set(s * 0.075, 0.085, 0.158);
+    head.add(white, pupil, glint, brow);
+    eyes.push({ white, pupil, glint, s });
+    brows.push({ brow, s });
+  }
+  const nose = mesh(new THREE.BoxGeometry(0.05, 0.07, 0.05), skinDark, false);
+  nose.position.set(0, -0.02, 0.17);
+  head.add(nose);
+  if (p.glasses) {
+    const fm = mat('#1b1b1b');
+    for (const s of [-1, 1]) {
+      const f = mesh(new THREE.TorusGeometry(0.045, 0.009, 4, 12), fm, false);
+      f.position.set(s * 0.075, 0.03, 0.172);
+      head.add(f);
+    }
+    const bridge = mesh(new THREE.BoxGeometry(0.06, 0.012, 0.01), fm, false);
+    bridge.position.set(0, 0.035, 0.172);
+    head.add(bridge);
+  }
   body.add(head);
-  const cape = mesh(new THREE.ConeGeometry(0.44, 0.62, 12, 1, true), mat(p.capeColor || '#2b2d42', { side: true }));
+
+  const cape = mesh(new THREE.ConeGeometry(0.46, 0.66, 14, 1, true), mat(p.capeColor || '#2b2d42', { side: true }));
   cape.position.y = HIP + 0.2;
   cape.visible = false;
-  body.add(cape);
-  const towel = mesh(new THREE.BoxGeometry(0.38, 0.14, 0.34), mat('#f8f9fa'));
-  towel.position.y = 0.17;
+  const capeCollar = mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.04, 10), mat('#f8f9fa'), false);
+  capeCollar.position.y = HIP + 0.5;
+  capeCollar.visible = false;
+  body.add(cape, capeCollar);
+  const towel = new THREE.Group();
+  const tw1 = mesh(new THREE.BoxGeometry(0.38, 0.12, 0.34), mat('#f8f9fa'));
+  const tw2 = mesh(new THREE.BoxGeometry(0.2, 0.09, 0.2), mat('#e9ecef'));
+  tw2.position.set(0.04, 0.08, -0.02);
+  towel.add(tw1, tw2);
+  towel.position.y = 0.19;
   towel.visible = false;
   head.add(towel);
-  g.userData = { body, legs, arms, head, headMesh, cape, towel, scissors, hairKey: '', hair: null, faceKey: '', angle: 0, lx: p.x, ly: p.y };
+
+  g.userData = { body, legs, arms, head, headMesh, eyes, brows, cape, capeCollar, towel, tool, hairKey: '', hair: null, faceKey: '', angle: 0, lx: p.x, ly: p.y, blink: Math.random() * 4 };
   return g;
 }
 
@@ -774,37 +895,63 @@ function syncPeople(t) {
     const faceKey = a.mood + '|' + a.skin;
     if (faceKey !== ud.faceKey) {
       const mats = ud.headMesh.material.slice();
-      mats[4] = faceTexture(a);
+      mats[4] = mouthMaterial(a);
       ud.headMesh.material = mats;
       ud.faceKey = faceKey;
+      // eyebrows show the mood
+      const angry = a.mood === 'angry', happy = a.mood === 'happy';
+      ud.brows.forEach(({ brow, s }) => { brow.rotation.z = angry ? s * -0.45 : happy ? s * 0.15 : 0; brow.position.y = angry ? 0.075 : happy ? 0.095 : 0.085; });
     }
     g.visible = (a.alpha === undefined ? 1 : a.alpha) > 0.35;
     let y = 0;
     if (a.sitting) {
       const it = itemAt(Math.floor(a.x), Math.floor(a.y));
-      y = it && SEAT_H[it.type] !== undefined ? SEAT_H[it.type] * U - HIP + 0.06 : 0;
+      y = it && SEAT_H[it.type] !== undefined ? SEAT_H[it.type] * U - (HIP - 0.02) * PERSON_SCALE : 0;
     }
     const walking = a.moving && !a.sitting;
     const phase = (a.walkT || 0) * 10;
-    const bob = walking ? Math.abs(Math.sin(phase)) * 0.04 : Math.sin(t * 2 + a.id) * 0.006;
+    const bob = walking ? Math.abs(Math.sin(phase)) * 0.045 : Math.sin(t * 2 + a.id) * 0.006;
     g.position.set(a.x, y + bob, a.y);
     const target = agentAngle(ud, a);
     let da = target - ud.angle;
     while (da > Math.PI) da -= Math.PI * 2;
     while (da < -Math.PI) da += Math.PI * 2;
-    ud.angle += da * Math.min(1, 0.25);
+    ud.angle += da * 0.25;
     g.rotation.y = ud.angle;
-    // limbs
-    const swing = walking ? Math.sin(phase) * 0.6 : 0;
-    if (a.sitting) { ud.legs[0].rotation.x = ud.legs[1].rotation.x = -Math.PI / 2; }
-    else { ud.legs[0].rotation.x = swing; ud.legs[1].rotation.x = -swing; }
-    ud.arms[0].rotation.x = -swing * 0.8;
-    if (a.working) { ud.arms[1].rotation.x = -1.35 + Math.sin(t * 18) * 0.12; ud.arms[0].rotation.x = -0.7; }
-    else ud.arms[1].rotation.x = swing * 0.8;
-    if (ud.scissors) ud.scissors.visible = !!a.working;
-    ud.cape.visible = !!a.cape;
-    ud.arms.forEach(arm => { arm.visible = !a.cape; });
+
+    // legs
+    const swing = walking ? Math.sin(phase) * 0.55 : 0;
+    if (a.sitting) {
+      ud.legs.forEach(l => { l.thigh.rotation.x = -Math.PI / 2; l.knee.rotation.x = Math.PI / 2 - 0.1; });
+    } else {
+      ud.legs[0].thigh.rotation.x = swing; ud.legs[1].thigh.rotation.x = -swing;
+      ud.legs[0].knee.rotation.x = walking ? Math.max(0, -Math.sin(phase)) * 0.7 : 0;
+      ud.legs[1].knee.rotation.x = walking ? Math.max(0, Math.sin(phase)) * 0.7 : 0;
+    }
+    // arms
+    const [L, R] = ud.arms;
+    if (a.working) {
+      R.shoulder.rotation.x = -1.25 + Math.sin(t * 3) * 0.08; R.elbow.rotation.x = -0.5;
+      L.shoulder.rotation.x = -0.95; L.elbow.rotation.x = -0.9;
+      if (ud.tool) { const o = Math.sin(t * 18) * 0.22; ud.tool.userData.blades[0].rotation.y = 0.05 + Math.abs(o); ud.tool.userData.blades[1].rotation.y = -0.05 - Math.abs(o); }
+    } else if (a.sitting) {
+      L.shoulder.rotation.x = R.shoulder.rotation.x = -0.35; L.elbow.rotation.x = R.elbow.rotation.x = -0.9;
+    } else {
+      L.shoulder.rotation.x = -swing * 0.8; R.shoulder.rotation.x = swing * 0.8;
+      L.elbow.rotation.x = R.elbow.rotation.x = walking ? -0.35 : -0.08;
+    }
+    if (ud.tool) ud.tool.visible = !!a.working;
+    ud.cape.visible = ud.capeCollar.visible = !!a.cape;
+    ud.arms.forEach(arm => { arm.shoulder.visible = !a.cape; });
     ud.towel.visible = !!a.towel;
+    // blinking
+    ud.blink -= 1 / 60;
+    const closed = ud.blink < 0.12;
+    if (ud.blink < 0) ud.blink = 2 + Math.random() * 4;
+    ud.eyes.forEach(e => { const k = closed || a.mood === 'happy' ? 0.25 : 1; e.white.scale.y = e.pupil.scale.y = k; e.glint.visible = !closed; });
+    // look toward the barber's work or wander
+    const look = a.working ? 0 : Math.sin(t * 0.7 + a.id) * 0.012;
+    ud.eyes.forEach(e => { e.pupil.position.x = e.s * 0.075 + look; });
   }
   for (const [id, g] of R3.people) if (!alive.has(id)) { disposeGroup(g); R3.scene.remove(g); R3.people.delete(id); }
 }

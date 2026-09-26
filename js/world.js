@@ -241,6 +241,9 @@ function randomPerson() {
     shirt: pick(SHIRT_COLORS), pants: pick(PANTS_COLORS), shoes: pick(SHOE_COLORS),
     stripes: Math.random() < 0.2,
     dress: female && Math.random() < 0.35,
+    glasses: Math.random() < 0.18,
+    watch: Math.random() < 0.3,
+    earrings: female && Math.random() < 0.6,
   };
 }
 

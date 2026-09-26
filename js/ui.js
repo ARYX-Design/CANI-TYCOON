@@ -151,6 +151,7 @@ function openPanel(name) {
   $('#panel').classList.remove('hidden');
   document.querySelectorAll('#toolbar button[data-panel]').forEach(b => b.classList.toggle('active', b.dataset.panel === name));
   $('#panelBody').scrollTop = 0;
+  if (name === 'rewards') refreshMe().then(() => { if (UI.panel === 'rewards') renderPanel(); });
   renderPanel();
 }
 
@@ -179,7 +180,8 @@ function renderPanel() {
 
 function buildPanel() {
   const s = Game.state;
-  const cards = Object.entries(ITEMS).map(([key, it]) => {
+  // coin-only decor is retired: coins are for real rewards now (owned pieces stay in the shop)
+  const cards = Object.entries(ITEMS).filter(([, it]) => !it.coinCost).map(([key, it]) => {
     const locked = it.stage > s.stage;
     const price = it.coinCost ? it.coinCost : itemCost(key);
     const poor = it.coinCost ? s.coins < it.coinCost : s.money < price;
@@ -197,8 +199,7 @@ function buildPanel() {
   }).join('');
   const counts = {};
   s.items.forEach(i => { counts[i.type] = (counts[i.type] || 0) + 1; });
-  const coupon = s.armed.furniture30 ? '<div class="panel-note coupon-note">🎟️ −30% furniture coupon active for your next purchase</div>' : '';
-  return `${coupon}<div class="panel-note">Appeal <b>${decorScore()}</b> · Seats <b>${s.items.filter(i => ITEMS[i.type].seat).length}</b> · Chairs <b>${s.items.filter(i => ITEMS[i.type].station === 'chair').length}</b> · Barbers <b>${s.barbers.length}</b></div>
+  return `<div class="panel-note">Appeal <b>${decorScore()}</b> · Seats <b>${s.items.filter(i => ITEMS[i.type].seat).length}</b> · Chairs <b>${s.items.filter(i => ITEMS[i.type].station === 'chair').length}</b> · Barbers <b>${s.barbers.length}</b></div>
     <button class="card sell-card${UI.tool && UI.tool.mode === 'sell' ? ' selected' : ''}" data-action="sell"><div class="card-icon">💰</div><div class="card-main"><div class="card-title">Sell furniture</div><div class="card-desc">Tap an item to sell it for 50% of its price.</div></div></button>
     <div class="grid">${cards}</div>`;
 }
@@ -299,7 +300,7 @@ function billsPanel() {
       <div class="card-desc small">${t.note}</div></div>
       <div class="side"><div class="price">${fmt(b.amount)}</div>
       <button class="btn small" data-action="payBill" data-id="${b.id}" ${s.money < b.amount ? 'disabled' : ''}>Pay</button>
-      ${s.coupons.billHalf ? `<button class="btn small coin-btn" data-action="payBillHalf" data-id="${b.id}" ${s.money < Math.ceil(b.amount / 2) ? 'disabled' : ''}>🎟️ ½ ${fmt(Math.ceil(b.amount / 2))}</button>` : ''}</div></div>`;
+</div></div>`;
   }).join('');
   return `<div class="panel-note">Unpaid: <b>${fmt(total)}</b>. Late bills add a 10% fee every night and cost reputation.</div>
     <button class="btn wide" data-action="payAll" ${s.money < total ? 'disabled' : ''}>Pay all · ${fmt(total)}</button>
@@ -369,8 +370,13 @@ function handlePanelClick(e) {
     case 'payBill': r = payBill(+el.dataset.id); if (r.ok) toast('🧾 Bill paid'); break;
     case 'payBillHalf': r = payBill(+el.dataset.id, true); if (r.ok) toast('🎟️ Bill paid at half price!'); break;
     case 'claimGoal': r = claimGoal(+el.dataset.idx); if (r.ok) { const b = el.getBoundingClientRect(); toast('⭐ Coins claimed!'); } break;
-    case 'buyCoupon': r = buyCoupon(el.dataset.id); break;
-    case 'useCoupon': r = useCoupon(el.dataset.id); break;
+    case 'redeem': {
+      const rw = Cloud.rewards.find(x => x.id === el.dataset.id);
+      if (rw) showModal(`<h2>${rw.icon} ${rw.name}</h2><p>Exchange <b>⭐ ${rw.cost}</b> Cani Coins for this coupon? You'll get a code and QR to show at the counter.</p>`,
+        [{ label: 'Cancel' }, { label: `Exchange ⭐ ${rw.cost}`, cls: 'primary', fn: () => redeemReward(rw.id) }]);
+      break;
+    }
+    case 'showCoupon': showCoupon(el.dataset.id); break;
     case 'payAll': r = payAllBills(); if (r.ok) toast('🧾 All bills paid!'); break;
     case 'toggleNames': UI.showNames = !UI.showNames; break;
     case 'recenter': Renderer.fitCamera(); break;

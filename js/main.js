@@ -9,6 +9,7 @@
   initWorld(saved || newState());
   Renderer.fitCamera();
   window.addEventListener('resize', () => Renderer.fitCamera());
+  cloudInit();
 
   Game.listeners.push(ev => {
     if (ev && ev.type === 'dayEnd') { setTool(null); Game.selected = null; musicMuffle(true); showDaySummary(ev.summary); }

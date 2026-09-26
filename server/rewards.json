@@ -1,0 +1,7 @@
+[
+  { "id": "coffee",  "name": "Free coffee",           "icon": "☕", "cost": 60,  "validDays": 14, "limitPer30Days": 4, "desc": "One free coffee or espresso while you wait." },
+  { "id": "off10",   "name": "10% off any service",   "icon": "🏷️", "cost": 120, "validDays": 30, "limitPer30Days": 2, "desc": "10% off one haircut, shave or treatment." },
+  { "id": "off20",   "name": "20% off any service",   "icon": "💸", "cost": 220, "validDays": 30, "limitPer30Days": 1, "desc": "20% off one haircut, shave or treatment." },
+  { "id": "beard",   "name": "Free beard trim",       "icon": "🧔", "cost": 250, "validDays": 30, "limitPer30Days": 1, "desc": "A free beard trim and line-up." },
+  { "id": "haircut", "name": "Free haircut",          "icon": "✂️", "cost": 500, "validDays": 30, "limitPer30Days": 1, "desc": "One free classic haircut." }
+]

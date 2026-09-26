@@ -23,10 +23,10 @@ You can also serve the folder, for example with `npx serve .`.
 - 🧾 **Pay bills:** rent and supplies arrive every day, electricity and water every 3 days, internet every 5 and taxes every 7.
   Late bills add a 10% fee each night and cost reputation. Unpaid electricity causes a power cut (dark shop, slower cuts, TVs off);
   unpaid water stops sinks and color stations.
-- ⭐ **Cani Coins & coupons:** earn coins from 3 daily goals (tap Claim), by tapping the purple coins super-happy customers drop,
-  from the daily opening bonus and by expanding. Spend them in the **Rewards** tab on coupons: −30% furniture, free hire,
-  −20% upgrade, half-price bill, double tips, rush hour, chill customers and a five-star review. Coins also buy exclusive
-  decor (Neon CANI Sign, Golden Pole).
+- ⭐ **Cani Coins → real coupons:** earn coins from 3 daily goals (tap Claim), by tapping the purple coins super-happy
+  customers drop, from the daily opening bonus and by expanding. In the **Rewards** tab players exchange coins for
+  **real coupons at the barbershop**: free coffee, 10% off, 20% off, free beard trim, free haircut. Each coupon gets a
+  one-time code and QR code to show at the counter (see *Real rewards* below).
 - 🛎️ Later you can hire a **Receptionist**, **Cashier** and **Cleaner** (Upgrades tab) to automate these jobs.
 - 🎵 Lo-fi background music (it gets richer as the shop grows) and sound effects: door bell, scissors, clippers, register,
   coins, sweeping. Toggle them with the 🎵 button or in the ⚙️ menu.
@@ -56,6 +56,57 @@ Each day runs from 09:00 to 19:00. Wages are paid at closing time; everything el
 **Controls:** drag to pan, scroll or pinch to zoom, tap or click to place. `Space` pauses, `1`–`3` set the speed,
 `B` opens Build, `Esc` cancels. Right-click also cancels the build tool.
 
+## Real rewards (coins → coupons)
+
+Coins only turn into real coupons when the game is served by the included server (`server/server.js`).
+The server keeps every player's real coin balance, caps how many coins a player can earn per day,
+limits how often each reward can be claimed, and issues one-time coupon codes. Staff check and redeem codes
+on the **coupon desk** page, `/staff.html`, protected by a PIN.
+
+### Run it
+
+```bash
+STAFF_PIN=4821 npm start          # or: STAFF_PIN=4821 node server/server.js
+# game:        http://localhost:8080/
+# coupon desk: http://localhost:8080/staff.html
+```
+
+| Setting | Default | What it does |
+|---------|---------|--------------|
+| `STAFF_PIN` | required | PIN for the coupon desk (4+ digits). 5 wrong tries lock that network out for 10 minutes. |
+| `DAILY_COIN_CAP` | `40` | Most coins one player can earn per day, no matter how much they play. |
+| `PORT` | `8080` | Port to listen on. |
+| `DATA_DIR` | `server/data` | Where `db.json` (players, balances, coupons) is stored. Back this folder up. |
+| `TZ` | server's | Time zone for "per day" limits, e.g. `Europe/Ljubljana`. |
+| `ALLOWED_ORIGIN` | – | Only if the game is hosted on a different domain than the server. |
+
+The rewards menu (names, prices in coins, how long a coupon is valid, how often a player can get it)
+is in `server/rewards.json`. Restart the server after editing it.
+
+### Host it
+
+Any host that runs Node 18+ with a persistent disk works, for example a small VPS, Render (with a disk),
+Railway or Fly.io. Start command `npm start`, set `STAFF_PIN` (and `TZ`), and point `DATA_DIR` at the persistent disk.
+Use HTTPS (most hosts do this for you). Players open the site on their phone; staff open `/staff.html` on the shop's
+phone or tablet. Scanning a coupon's QR code with the phone camera opens the coupon desk with the code filled in.
+
+### At the counter
+
+1. The customer opens **Rewards → My coupons** and shows the coupon (QR + code like `CANI-7K3Q-9XPM`).
+2. Staff scan the QR or type the code on `/staff.html` → **Check code**.
+3. Green **Valid** → give the reward and tap **Mark as used** (twice to confirm). A code can only be used once;
+   used and expired codes show in red.
+
+### Limits and honest caveats
+
+- Coins are earned in the browser, so a determined person could fake game progress. The server therefore treats
+  coin reports as untrusted: it caps coins per player per day (`DAILY_COIN_CAP`), per request and per few seconds,
+  and caps each reward per 30 days. Set reward prices with that in mind (at 40 coins/day a free coffee takes at
+  least 2 days, a free haircut at least 13).
+- A player is one browser/device. Someone could create several players on different devices; new players are
+  limited to 5 per hour per network. For stricter control, add phone-number or email sign-in later.
+- The preview link on claude.ai can't reach a server, so exchanging coins is switched off there.
+
 ## Code layout
 
 | File | Purpose |
@@ -64,7 +115,13 @@ Each day runs from 09:00 to 19:00. Wages are paid at closing time; everything el
 | `js/iso.js` | Isometric projection and drawing primitives |
 | `js/sprites.js` | Procedurally drawn furniture and characters |
 | `js/world.js` | Simulation: pathfinding, customers, barbers, tap actions, bills, economy, day cycle, save/load |
-| `js/rewards.js` | Cani Coins, daily goals, coupon shop and the Rewards panel |
+| `js/rewards.js` | Cani Coins, daily goals and the Rewards panel |
+| `js/cloud.js` | Talks to the rewards server: player account, coin sync, redeeming, coupon QR codes |
+| `js/config.js` | Where the rewards server is (`apiBase`) |
+| `staff.html`, `js/staff.js` | Coupon desk for staff: PIN login, check / scan a code, mark as used |
+| `server/server.js` | Node server: serves the game, rewards API, daily caps, coupon codes |
+| `server/rewards.json` | The real rewards menu |
+| `js/vendor/qrcode.js` | QR code generator (MIT) |
 | `js/audio.js` | Procedural background music and sound effects (Web Audio) |
 | `js/render3d.js` | 3D renderer (Three.js): room, furniture and character models, lighting, highlights |
 | `js/render.js` | Classic 2D renderer and the overlay shared by both views (labels, bubbles, effects) |

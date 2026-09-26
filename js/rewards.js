@@ -1,15 +1,4 @@
-// Cani Coins ⭐: earned from goals, happy customers and daily bonuses; spent on coupons
-
-const COUPONS = {
-  furniture30: { name: '−30% Furniture',   icon: '🛋️', cost: 8,  kind: 'arm',   desc: 'Your next furniture purchase is 30% off.' },
-  freeHire:    { name: 'Free Hire',        icon: '🤝', cost: 12, kind: 'arm',   desc: 'Your next barber joins with no signing fee.' },
-  upgrade20:   { name: '−20% Upgrade',     icon: '⚡', cost: 12, kind: 'arm',   desc: 'Your next upgrade or helper is 20% off.' },
-  billHalf:    { name: 'Half-Price Bill',  icon: '🧾', cost: 15, kind: 'bill',  desc: 'Pay any one bill at half price (use it in the Bills tab).' },
-  doubleTips:  { name: 'Double Tips',      icon: '💰', cost: 10, kind: 'day',   desc: 'All tips are doubled for the rest of the day.' },
-  rushHour:    { name: 'Rush Hour',        icon: '🚶', cost: 10, kind: 'day',   desc: '+50% customers for the rest of the day.' },
-  patience:    { name: 'Chill Customers',  icon: '😌', cost: 8,  kind: 'day',   desc: 'Customers who arrive today wait 50% longer.' },
-  repBoost:    { name: 'Five-Star Review', icon: '🌟', cost: 20, kind: 'now',   desc: 'An influencer posts about you: +0.3 reputation.' },
-};
+// Cani Coins ⭐: earned from goals, happy customers and daily bonuses; exchanged for real coupons at the barbershop (see cloud.js)
 
 // Daily goals: `stat` is a counter in state.today
 const GOAL_POOL = [
@@ -25,9 +14,10 @@ const GOAL_POOL = [
 
 function initRewards(s) {
   s.coins = s.coins || 0;
-  s.coupons = s.coupons || {};     // owned coupons: id -> count
-  s.armed = s.armed || {};         // discount coupons waiting for the next purchase
-  s.effects = s.effects || {};     // day coupons: id -> day number they're active on
+  // in-game coupons were replaced by real-world rewards
+  s.coupons = {};
+  s.armed = {};
+  s.effects = {};
   if (!s.goals || s.goals.day !== s.day) newGoals(s);
 }
 
@@ -65,6 +55,7 @@ function claimGoal(i) {
 
 function addCoins(n, why) {
   Game.state.coins += n;
+  cloudEarn(n);
   if (why !== 'silent') {
     const el = document.getElementById('hudCoins');
     if (el) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
@@ -72,42 +63,12 @@ function addCoins(n, why) {
   }
 }
 
-// ---------- coupons ----------
-
-function buyCoupon(id) {
-  const s = Game.state, c = COUPONS[id];
-  if (s.coins < c.cost) return { ok: false, reason: `You need ⭐${c.cost} for this coupon` };
-  s.coins -= c.cost;
-  s.coupons[id] = (s.coupons[id] || 0) + 1;
-  sfx('stamp');
-  toast(`🎟️ ${c.name} coupon added to your wallet`);
-  saveGame();
-  return { ok: true };
-}
-
-function useCoupon(id) {
-  const s = Game.state, c = COUPONS[id];
-  if (!s.coupons[id]) return { ok: false };
-  if (c.kind === 'bill') return { ok: false, reason: 'Use this one on a bill in the Bills tab' };
-  if (c.kind === 'arm' && s.armed[id]) return { ok: false, reason: 'Already active for your next purchase' };
-  if (c.kind === 'day' && effectActive(id)) return { ok: false, reason: 'Already active today' };
-  if (c.kind === 'day' && s.time >= CLOSE_TIME - 30) return { ok: false, reason: 'The shop is closing – use it tomorrow' };
-  s.coupons[id]--;
-  if (c.kind === 'arm') s.armed[id] = true;
-  if (c.kind === 'day') s.effects[id] = s.day;
-  if (c.kind === 'now' && id === 'repBoost') s.rep = clamp(s.rep + 0.3, 0, 5);
-  sfx('fanfare');
-  toast(`${c.icon} ${c.name} activated!`, 2600);
-  saveGame();
-  return { ok: true };
-}
-
 // price helpers used by the shop code
 function itemCost(type) {
   const base = ITEMS[type].cost;
   return Game.state.armed.furniture30 && !ITEMS[type].coinCost ? Math.round(base * 0.7) : base;
 }
-function consumeArmed(id) { if (Game.state.armed[id]) { delete Game.state.armed[id]; toast(`🎟️ ${COUPONS[id].name} coupon used`); } }
+function consumeArmed(id) { delete Game.state.armed[id]; }
 function hireFee(c) { return Game.state.armed.freeHire ? 0 : c.fee; }
 function upgradeCost(key) {
   const u = UPGRADES[key], c = u.costs[Game.state.upgrades[key]];
@@ -132,15 +93,25 @@ function collectDrop(d) {
   const p = iso(d.x, d.y, 10);
   flyCoins(p.x, p.y, d.value + 1, 'coins');
   addFloater(p.x, p.y - 10, `+⭐${d.value}`, '#ffe066', 1.2);
-  Game.state.coins += d.value;
+  addCoins(d.value, 'silent');
   track('drops');
   sfx('coin');
 }
 
 // ---------- Rewards panel ----------
 
+// shown when no rewards server is reachable (e.g. the preview link)
+const DEFAULT_REWARDS = [
+  { id: 'coffee', name: 'Free coffee', icon: '☕', cost: 60, desc: 'One free coffee or espresso while you wait.' },
+  { id: 'off10', name: '10% off any service', icon: '🏷️', cost: 120, desc: '10% off one haircut, shave or treatment.' },
+  { id: 'off20', name: '20% off any service', icon: '💸', cost: 220, desc: '20% off one haircut, shave or treatment.' },
+  { id: 'beard', name: 'Free beard trim', icon: '🧔', cost: 250, desc: 'A free beard trim and line-up.' },
+  { id: 'haircut', name: 'Free haircut', icon: '✂️', cost: 500, desc: 'One free classic haircut.' },
+];
+
 function rewardsPanel() {
   const s = Game.state;
+  const online = Cloud.online;
   const goals = s.goals.list.map((g, i) => {
     const prog = goalProgress(g), done = prog >= g.target;
     return `<div class="card goal${g.claimed ? ' claimed' : done ? ' ready' : ''}">
@@ -150,27 +121,26 @@ function rewardsPanel() {
       <div class="side">${g.claimed ? '<span class="badge dim">Claimed</span>'
         : `<button class="btn small${done ? ' primary' : ''}" data-action="claimGoal" data-idx="${i}" ${done ? '' : 'disabled'}>⭐ ${g.reward}</button>`}</div></div>`;
   }).join('');
-  const active = [
-    ...Object.keys(s.armed).map(id => `${COUPONS[id].icon} ${COUPONS[id].name} – next purchase`),
-    ...Object.keys(s.effects).filter(effectActive).map(id => `${COUPONS[id].icon} ${COUPONS[id].name} – today`),
-  ];
-  const owned = Object.entries(s.coupons).filter(([, n]) => n > 0);
-  const wallet = owned.length ? owned.map(([id, n]) => {
-    const c = COUPONS[id];
-    return `<div class="ticket owned">
-      <div class="ticket-icon">${c.icon}</div>
-      <div class="ticket-main"><div class="card-title">${c.name} ${n > 1 ? `<span class="badge dim">×${n}</span>` : ''}</div><div class="card-desc">${c.desc}</div></div>
-      <div class="ticket-stub">${c.kind === 'bill' ? '<span class="muted small">Bills tab</span>' : `<button class="btn small primary" data-action="useCoupon" data-id="${id}">Use</button>`}</div></div>`;
-  }).join('') : '<div class="muted small">No coupons yet. Buy some below!</div>';
-  const shop = Object.entries(COUPONS).map(([id, c]) => `<div class="ticket">
-      <div class="ticket-icon">${c.icon}</div>
-      <div class="ticket-main"><div class="card-title">${c.name}</div><div class="card-desc">${c.desc}</div></div>
-      <div class="ticket-stub"><button class="btn small coin-btn" data-action="buyCoupon" data-id="${id}" ${s.coins < c.cost ? 'disabled' : ''}>⭐ ${c.cost}</button></div></div>`).join('');
+  const today = online && Cloud.me ? `<div class="cap-row"><span>Earned today</span><div class="goal-bar"><span style="width:${Math.round(Cloud.me.earnedToday / Cloud.me.cap * 100)}%"></span></div><b>${Cloud.me.earnedToday}/${Cloud.me.cap}</b></div>` : '';
+  const list = online ? Cloud.rewards : DEFAULT_REWARDS;
+  const rewards = list.map(r => `<div class="ticket real">
+      <div class="ticket-icon">${r.icon}</div>
+      <div class="ticket-main"><div class="card-title">${r.name}</div><div class="card-desc">${r.desc}${r.limitPer30Days ? ` · max ${r.limitPer30Days}× per 30 days` : ''}</div></div>
+      <div class="ticket-stub"><button class="btn small coin-btn" data-action="redeem" data-id="${r.id}" ${!online || s.coins < r.cost ? 'disabled' : ''}>⭐ ${r.cost}</button></div></div>`).join('');
+  const mine = online && Cloud.me && Cloud.me.coupons.length
+    ? Cloud.me.coupons.map(c => `<button class="ticket owned mine ${c.status}" data-action="showCoupon" data-id="${c.code}">
+        <div class="ticket-icon">${c.icon}</div>
+        <div class="ticket-main"><div class="card-title">${c.name}</div><div class="card-desc mono">${c.code}</div>
+        <div class="card-desc">${c.status === 'active' ? `Valid until ${new Date(c.expiresAt).toLocaleDateString()}` : c.status === 'used' ? `Used ${new Date(c.usedAt).toLocaleDateString()}` : 'Expired'}</div></div>
+        <div class="ticket-stub"><span class="pill ${c.status}">${c.status === 'active' ? 'Show' : c.status}</span></div></button>`).join('')
+    : `<div class="muted small">${online ? 'No coupons yet. Exchange your coins above!' : 'Your coupons will appear here.'}</div>`;
+  const offline = online ? '' : `<div class="panel-note offline-note">🔌 Coins become real coupons in the official CANI game at the barbershop's website. This preview isn't connected to the shop's rewards server, so exchanging is switched off here.</div>`;
   return `<div class="coin-balance"><span class="coin-big">⭐</span><div><b>${s.coins}</b><span>Cani Coins</span></div></div>
-    <div class="panel-note">Earn coins from daily goals, by tapping coins that super-happy customers drop, from the daily opening bonus and by expanding your shop.</div>
+    ${today}${offline}
+    <h3>Real rewards at CANI Barbershop</h3>
+    <div class="panel-note">Exchange coins for coupons you use in the real shop: show the QR code at the counter.</div>
+    ${rewards}
+    <h3>My coupons</h3>${mine}
     <h3>Today's goals</h3>${goals}
-    ${active.length ? `<h3>Active now</h3><div class="active-list">${active.map(a => `<span>${a}</span>`).join('')}</div>` : ''}
-    <h3>My coupons</h3>${wallet}
-    <h3>Coupon shop</h3>${shop}
-    <div class="panel-note">Exclusive decor like the <b>Neon CANI Sign</b> and <b>Golden Pole</b> can be bought with coins in the Build tab.</div>`;
+    <div class="panel-note">Earn coins from daily goals, by tapping coins that super-happy customers drop, from the daily opening bonus and by expanding your shop.${online && Cloud.me ? ` You can earn up to ${Cloud.me.cap} coins per day.` : ''}</div>`;
 }

@@ -1,0 +1,10 @@
+{
+  "name": "cani-barber-tycoon",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CANI Barber Tycoon – 3D barbershop tycoon game with real-world rewards",
+  "scripts": {
+    "start": "node server/server.js"
+  },
+  "engines": { "node": ">=18" }
+}

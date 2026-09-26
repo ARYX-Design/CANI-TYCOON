@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>CANI Coupon Desk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    [hidden] { display: none !important; }
+    html, body { overflow: auto; user-select: auto; -webkit-user-select: auto; }
+    body { background: var(--bg); }
+    .desk { max-width: 520px; margin: 0 auto; padding: 24px 16px 40px; display: grid; gap: 16px; }
+    .desk header { display: flex; align-items: center; justify-content: space-between; }
+    .desk .brand { font-size: 30px; }
+    .box { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 18px; display: grid; gap: 12px; }
+    .box h2 { margin: 0; font-size: 18px; }
+    label { font-size: 13px; color: var(--muted); }
+    input.big { width: 100%; font: inherit; font-size: 22px; letter-spacing: 2px; text-transform: uppercase; color: var(--text);
+      background: rgba(0,0,0,0.35); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; outline: none; user-select: text; -webkit-user-select: text; }
+    input.big:focus { border-color: var(--gold); }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .row .btn { flex: 1; }
+    .result { border-radius: 14px; padding: 16px; display: grid; gap: 6px; }
+    .result.active { background: rgba(123, 216, 143, 0.14); border: 1px solid var(--green); }
+    .result.used, .result.expired, .result.error { background: rgba(230, 57, 70, 0.14); border: 1px solid var(--red); }
+    .result .big-status { font-size: 20px; font-weight: 700; }
+    .result .reward { font-size: 24px; font-weight: 600; }
+    .meta { font-size: 13px; color: var(--muted); }
+    video { width: 100%; border-radius: 12px; background: #000; }
+    .stats3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .stats3 div { background: var(--card); border-radius: 10px; padding: 8px; text-align: center; }
+    .stats3 b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; }
+    .stats3 span { font-size: 11px; color: var(--muted); }
+    .recent { display: grid; gap: 6px; }
+    .recent div { display: flex; justify-content: space-between; gap: 8px; background: var(--card); border-radius: 8px; padding: 7px 10px; font-size: 13px; }
+    .mono { font-family: ui-monospace, Menlo, Consolas, monospace; }
+  </style>
+</head>
+<body>
+  <main class="desk">
+    <header><div class="brand">CANI<span>Coupon desk</span></div><button id="logout" class="btn small danger" hidden>Log out</button></header>
+
+    <section class="box" id="loginBox">
+      <h2>Staff login</h2>
+      <label for="pin">Staff PIN</label>
+      <input class="big" id="pin" type="password" inputmode="numeric" autocomplete="off">
+      <button class="btn" id="loginBtn">Log in</button>
+      <div class="meta" id="loginMsg"></div>
+    </section>
+
+    <section class="box" id="checkBox" hidden>
+      <h2>Check a coupon</h2>
+      <label for="code">Coupon code</label>
+      <input class="big" id="code" placeholder="CANI-XXXX-XXXX" autocomplete="off" spellcheck="false">
+      <div class="row">
+        <button class="btn" id="lookupBtn">Check code</button>
+        <button class="btn danger" id="scanBtn" hidden>📷 Scan QR</button>
+      </div>
+      <video id="video" playsinline hidden></video>
+      <div id="result"></div>
+    </section>
+
+    <section class="box" id="statsBox" hidden>
+      <h2>Today</h2>
+      <div class="stats3"><div><b id="sUsed">0</b><span>used today</span></div><div><b id="sIssued">0</b><span>coupons issued</span></div><div><b id="sPlayers">0</b><span>players</span></div></div>
+      <div class="recent" id="recent"></div>
+    </section>
+  </main>
+  <script src="js/staff.js"></script>
+</body>
+</html>
