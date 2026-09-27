@@ -185,6 +185,12 @@ signed-in players' shops live in PostgreSQL. They survive redeploys, and the hos
 4. Already ran the server with files? On the first start with an empty database, everything in `DATA_DIR`
    (players, coupons, saves) is copied into Neon automatically.
 
+**GitHub ↔ Neon.** With the repo connected in Neon (Project settings → Integrations → GitHub), the
+**Neon database check** workflow (`.github/workflows/neon.yml`) runs whenever the server code changes. It makes a
+throwaway Neon branch, runs `server/smoke-test.js` on it (sign-in, coins, coupon, staff desk, online save,
+leaderboard, restart), then deletes the branch. Your real data is never touched. The integration does **not**
+give the running server its connection string: set `DATABASE_URL` on the host yourself.
+
 Keep the connection string secret: it contains the database password. Don't commit it or put it in `js/config.js`.
 The game in the browser never talks to Neon directly, only to this server. Run **one** server process per
 database, because the server keeps the data in memory and writes changes back.

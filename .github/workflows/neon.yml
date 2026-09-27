@@ -1,0 +1,64 @@
+# Checks the server against the real Neon project. Uses what the Neon GitHub integration adds to the repo:
+# the NEON_PROJECT_ID variable and the NEON_API_KEY secret.
+# Each run makes a throwaway Neon branch (a copy of the database), runs server/smoke-test.js on it,
+# and deletes the branch again, so the shop's real data is never touched.
+name: Neon database check
+
+on:
+  push:
+    paths: ['server/**', 'package.json', 'package-lock.json', '.github/workflows/neon.yml']
+  pull_request:
+    paths: ['server/**', 'package.json', 'package-lock.json', '.github/workflows/neon.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: neon-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server-on-neon:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # pull requests from forks get no secrets; skip instead of failing
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Check the Neon integration is set up
+        env:
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+        run: |
+          if [ -z "$NEON_PROJECT_ID" ] || [ -z "$NEON_API_KEY" ]; then
+            echo "::error::NEON_PROJECT_ID (variable) or NEON_API_KEY (secret) is missing. Connect the repo in Neon: Project settings > Integrations > GitHub."
+            exit 1
+          fi
+
+      - name: Create a throwaway Neon branch
+        id: neon
+        uses: neondatabase/create-branch-action@v6
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+          branch_name: ci/run-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Test the server on Neon
+        env:
+          DATABASE_URL: ${{ steps.neon.outputs.db_url }}
+          TZ: Europe/Ljubljana
+        run: node server/smoke-test.js
+
+      - name: Delete the throwaway branch
+        if: always() && steps.neon.outputs.branch_id != ''
+        uses: neondatabase/delete-branch-action@v3
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          branch: ${{ steps.neon.outputs.branch_id }}
+          api_key: ${{ secrets.NEON_API_KEY }}

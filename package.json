@@ -4,7 +4,8 @@
   "private": true,
   "description": "CANI Barber Tycoon – 3D barbershop tycoon game with real-world rewards",
   "scripts": {
-    "start": "node server/server.js"
+    "start": "node server/server.js",
+    "test:server": "node server/smoke-test.js"
   },
   "engines": {
     "node": ">=18"
