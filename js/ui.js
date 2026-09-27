@@ -187,6 +187,7 @@ function openPanel(name) {
   $('#panel').classList.remove('hidden');
   document.querySelectorAll('#toolbar button[data-panel]').forEach(b => b.classList.toggle('active', b.dataset.panel === name));
   $('#panelBody').scrollTop = 0;
+  if (name === 'leaderboard') openLeaderboard();
   if (name === 'rewards') refreshMe().then(() => { if (UI.panel === 'rewards') renderPanel(); });
   renderPanel();
 }
@@ -202,9 +203,9 @@ function renderPanel() {
   UI.lastPanel = performance.now();
   const body = $('#panelBody');
   const scroll = body.scrollTop;
-  const titles = { rewards: '🎟️ Rewards & Coupons', bills: '🧾 Bills', build: '🛠️ Build & Decorate', staff: '💇 Staff', services: '✂️ Services & Prices', upgrades: '⚡ Upgrades', expand: '🏙️ Expand the Empire', menu: '⚙️ Menu' };
+  const titles = { rewards: '🎟️ Rewards & Coupons', bills: '🧾 Bills', build: '🛠️ Build & Decorate', staff: '💇 Staff', services: '✂️ Services & Prices', upgrades: '⚡ Upgrades', expand: '🏙️ Expand the Empire', menu: '⚙️ Menu', leaderboard: '🏆 Leaderboard' };
   $('#panelTitle').textContent = titles[UI.panel] || '';
-  const html = ({ rewards: rewardsPanel, bills: billsPanel, build: buildPanel, staff: staffPanel, services: servicesPanel, upgrades: upgradesPanel, expand: expandPanel, menu: menuPanel })[UI.panel]();
+  const html = ({ rewards: rewardsPanel, bills: billsPanel, build: buildPanel, staff: staffPanel, services: servicesPanel, upgrades: upgradesPanel, expand: expandPanel, menu: menuPanel, leaderboard: leaderboardPanel })[UI.panel]();
   if (body.dataset.html !== html) {
     body.innerHTML = html;
     body.dataset.html = html;
@@ -428,6 +429,9 @@ function handlePanelClick(e) {
     case 'save': saveGame(); toast('Game saved 💾'); break;
     case 'help': showIntro(); break;
     case 'switchPlayer': switchPlayer(); break;
+    case 'lbScope': Board.scope = el.dataset.v; renderPanel(); break;
+    case 'lbMetric': Board.metric = el.dataset.v; Board.rows = Board.scope === 'all' ? null : Board.rows; renderPanel(); if (boardOnline()) loadBoard(); break;
+    case 'lbRename': renamePlayer(); break;
     case 'reset':
       showModal(`<h2>Start over?</h2><p>This deletes <b>${escapeHtml(Account.current.name)}</b>'s shop and sends them back to the garage. Other players keep theirs.</p>`, [
         { label: 'Cancel' },

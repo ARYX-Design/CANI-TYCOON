@@ -27,6 +27,15 @@ The game opens on a **Who's playing?** screen, and every player has their own sh
 - **Menu → Switch player** goes back to the start screen. **New game** only resets the current player's shop.
 - A save from before players existed becomes **Player 1**.
 
+### 🏆 Leaderboard
+
+The **Ranks** button ranks players by **money earned**, **customers served** or **days in business**:
+
+- **🌍 Everyone** (when the rewards server is running): every player's shop, top 50, with your own place shown
+  even when you're further down. Scores are sent at the end of every day, when you open the board, and when
+  the game starts. **✏️ Change** sets the name other players see.
+- **📱 This device**: the players on this phone or computer. This works everywhere, even without a server.
+
 ## How it works
 
 **You run the floor with your fingers:**
@@ -172,6 +181,8 @@ phone or tablet. Scanning a coupon's QR code with the phone camera opens the cou
 
 ### Limits and honest caveats
 
+- Leaderboard numbers come from the player's own game, so someone who edits their browser storage can post a
+  fake score. The server caps the values, but it can't check them.
 - Coins are earned in the browser, so a determined person could fake game progress. The server therefore treats
   coin reports as untrusted: it caps coins per player per day (`DAILY_COIN_CAP`), per request and per few seconds,
   and caps each reward per 30 days. Set reward prices with that in mind (at 40 coins/day a free coffee takes at
@@ -196,6 +207,7 @@ phone or tablet. Scanning a coupon's QR code with the phone camera opens the cou
 | `js/world.js` | Simulation: pathfinding, customers, barbers, tap actions, bills, economy, day cycle, save/load |
 | `js/rewards.js` | Cani Coins, daily goals and the Rewards panel |
 | `js/cloud.js` | Talks to the rewards server: player account, coin sync, online saves, redeeming, coupon QR codes |
+| `js/leaderboard.js` | Leaderboard panel: everyone (server) and this device, sending scores |
 | `js/account.js` | Start screen: players on this device (name + optional PIN) and phone/email sign-in |
 | `js/config.js` | Where the rewards server is (`apiBase`) |
 | `staff.html`, `js/staff.js` | Coupon desk for staff: PIN login, check / scan a code, mark as used |

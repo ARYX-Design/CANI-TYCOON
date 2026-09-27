@@ -400,3 +400,22 @@ body.view3d #rotateBtns { display: flex; }
 .gate-btns .btn { flex: 1 1 auto; }
 .gate-note { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.4; }
 .gate-card .field-error:empty { display: none; }
+
+/* ---------- leaderboard ---------- */
+.lb-list { display: grid; gap: 6px; margin: 10px 0; }
+.lb-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: var(--card); }
+.lb-row.me { border: 1px solid var(--gold); background: rgba(241, 196, 83, 0.1); }
+.lb-rank { width: 30px; text-align: center; font-size: 20px; flex: none; }
+.lb-num { font-size: 14px; font-weight: 700; color: var(--muted); }
+.lb-name { flex: 1; min-width: 0; display: grid; }
+.lb-name b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-name small { color: var(--muted); font-size: 12px; }
+.lb-val { font-weight: 700; white-space: nowrap; }
+.lb-gap { text-align: center; color: var(--muted); }
+.segmented + .segmented { margin-top: 6px; }
+/* eight toolbar buttons on a narrow phone */
+@media (max-width: 440px) {
+  #toolbar { gap: 2px; padding: 4px; }
+  #toolbar button { font-size: 9px; letter-spacing: -0.2px; padding: 5px 0; }
+  #toolbar button span { font-size: 18px; }
+}

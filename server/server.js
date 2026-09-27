@@ -47,7 +47,7 @@ const SOCIAL = JSON.parse(fs.readFileSync(path.join(__dirname, 'social.json'), '
 // ---------- tiny JSON database ----------
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
-let db = { players: {}, coupons: {}, log: [], contacts: {} };
+let db = { players: {}, coupons: {}, log: [], contacts: {}, scores: {} };
 try { db = { ...db, ...JSON.parse(fs.readFileSync(DB_FILE, 'utf8')) }; } catch (e) { /* first run */ }
 
 let saveTimer = null;
@@ -315,6 +315,28 @@ const api = {
     return { ok: true, savedAt };
   },
 
+  // Leaderboard: each player reports their shop's numbers; everyone sees the top 50
+  'POST /api/score': (req, p, body) => {
+    if (limited('score:' + p.id, 6, 60e3)) throw { code: 429, error: 'Slow down' };
+    const num = (v, max) => Math.max(0, Math.min(max, Math.floor(+v) || 0));
+    const name = String(body.name || '').replace(/[\u0000-\u001f\u007f<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 16);
+    if (!name) throw { code: 400, error: 'Pick a name for the leaderboard' };
+    db.scores[p.id] = {
+      name, earned: num(body.earned, 1e9), served: num(body.served, 1e7), day: num(body.day, 1e5),
+      stage: num(body.stage, 10), updatedAt: Date.now(),
+    };
+    save();
+    return { ok: true };
+  },
+  'GET /api/leaderboard': (req, p) => {
+    const by = new URL(req.url, 'http://x').searchParams.get('by');
+    const key = ['earned', 'served', 'day'].includes(by) ? by : 'earned';
+    const all = Object.entries(db.scores).sort((a, b) => b[1][key] - a[1][key] || a[1].updatedAt - b[1].updatedAt);
+    const row = ([id, sc], i) => ({ rank: i + 1, name: sc.name, earned: sc.earned, served: sc.served, day: sc.day, stage: sc.stage, me: id === p.id });
+    const mine = all.findIndex(([id]) => id === p.id);
+    return { by: key, players: all.length, rows: all.slice(0, 50).map(row), me: mine >= 0 ? row(all[mine], mine) : null };
+  },
+
   // "New game": forget the online save too
   'POST /api/save/delete': (req, p) => {
     try { fs.unlinkSync(saveFile(p.id)); } catch (e) { /* no save */ }
@@ -384,7 +406,7 @@ const api = {
   },
 };
 
-const PLAYER_ROUTES = new Set(['GET /api/save', 'POST /api/save', 'POST /api/save/delete', 'GET /api/me', 'POST /api/earn', 'POST /api/redeem', 'POST /api/bonus', 'POST /api/auth/start', 'POST /api/auth/verify', 'POST /api/auth/logout']);
+const PLAYER_ROUTES = new Set(['POST /api/score', 'GET /api/leaderboard', 'GET /api/save', 'POST /api/save', 'POST /api/save/delete', 'GET /api/me', 'POST /api/earn', 'POST /api/redeem', 'POST /api/bonus', 'POST /api/auth/start', 'POST /api/auth/verify', 'POST /api/auth/logout']);
 const STAFF_ROUTES = new Set(['POST /api/staff/lookup', 'POST /api/staff/use', 'GET /api/staff/recent']);
 
 async function handleApi(req, res, route) {

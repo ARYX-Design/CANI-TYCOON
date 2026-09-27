@@ -17,10 +17,11 @@
   initWorld(saved || newState());
   Renderer.fitCamera();
   window.addEventListener('resize', () => Renderer.fitCamera());
-  cloudInit();
+  cloudInit().then(() => submitScore(true));
+  boardInit();
 
   Game.listeners.push(ev => {
-    if (ev && ev.type === 'dayEnd') { setTool(null); Game.selected = null; musicMuffle(true); showDaySummary(ev.summary); }
+    if (ev && ev.type === 'dayEnd') { submitScore(true); setTool(null); Game.selected = null; musicMuffle(true); showDaySummary(ev.summary); }
     if (ev === 'dayStart') musicMuffle(false);
     if (ev === 'items' || ev === 'expand') saveGame();
   });
