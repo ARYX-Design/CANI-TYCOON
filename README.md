@@ -126,6 +126,7 @@ on the **coupon desk** page, `/staff.html`, protected by a PIN.
 ### Run it
 
 ```bash
+npm install                       # only needed for a Neon / PostgreSQL database
 STAFF_PIN=4821 npm start          # or: STAFF_PIN=4821 node server/server.js
 # game:        http://localhost:8080/
 # coupon desk: http://localhost:8080/staff.html
@@ -136,7 +137,8 @@ STAFF_PIN=4821 npm start          # or: STAFF_PIN=4821 node server/server.js
 | `STAFF_PIN` | required | PIN for the coupon desk (4+ digits). 5 wrong tries lock that network out for 10 minutes. |
 | `DAILY_COIN_CAP` | `40` | Most coins one player can earn per day, no matter how much they play. |
 | `PORT` | `8080` | Port to listen on. |
-| `DATA_DIR` | `server/data` | Where `db.json` (players, balances, coupons) is stored. Back this folder up. |
+| `DATABASE_URL` | – | A PostgreSQL connection string, e.g. from [Neon](https://neon.tech) (see below). When set, everything is stored in the database instead of `DATA_DIR`. |
+| `DATA_DIR` | `server/data` | Without `DATABASE_URL`: where `db.json` (players, balances, coupons, leaderboard) and `saves/` are stored. Back this folder up. |
 | `TZ` | server's | Time zone for "per day" limits, e.g. `Europe/Ljubljana`. |
 | `ALLOWED_ORIGIN` | – | Only if the game is hosted on a different domain than the server. |
 | `RESEND_API_KEY`, `MAIL_FROM` | – | Send sign-in codes by **email** through [Resend](https://resend.com). `MAIL_FROM` like `CANI Barber <codes@yourdomain.com>` (a domain verified in Resend). |
@@ -165,10 +167,33 @@ it isn't set up yet.
 The rewards menu (names, prices in coins, how long a coupon is valid, how often a player can get it)
 is in `server/rewards.json`. Restart the server after editing it.
 
+### Neon database (recommended for hosting)
+
+With a [Neon](https://neon.tech) database (free plan is enough), players, coins, coupons, the leaderboard and
+signed-in players' shops live in PostgreSQL. They survive redeploys, and the host doesn't need a disk.
+
+1. Sign up at neon.tech and create a project. Pick the **AWS Europe Central (Frankfurt)** region, closest to Slovenia.
+2. On the project dashboard press **Connect** and copy the connection string. It looks like
+   `postgresql://neondb_owner:••••@ep-cool-name-123456.eu-central-1.aws.neon.tech/neondb?sslmode=require`.
+3. Give it to the server as `DATABASE_URL`. On a host, add it as a secret environment variable. Locally:
+   ```bash
+   npm install
+   DATABASE_URL='postgresql://…?sslmode=require' STAFF_PIN=4821 npm start
+   ```
+   The log shows `Data: PostgreSQL at ep-….neon.tech`. The tables (`cani_records`, `cani_saves`) are created
+   automatically.
+4. Already ran the server with files? On the first start with an empty database, everything in `DATA_DIR`
+   (players, coupons, saves) is copied into Neon automatically.
+
+Keep the connection string secret: it contains the database password. Don't commit it or put it in `js/config.js`.
+The game in the browser never talks to Neon directly, only to this server. Run **one** server process per
+database, because the server keeps the data in memory and writes changes back.
+
 ### Host it
 
-Any host that runs Node 18+ with a persistent disk works, for example a small VPS, Render (with a disk),
-Railway or Fly.io. Start command `npm start`, set `STAFF_PIN` (and `TZ`), and point `DATA_DIR` at the persistent disk.
+Any host that runs Node 18+ works, for example Render, Railway, Fly.io or a small VPS. Start command `npm start`
+(build command `npm install`), set `STAFF_PIN`, `TZ=Europe/Ljubljana` and `DATABASE_URL` (Neon, above). Without
+Neon, the host needs a persistent disk, with `DATA_DIR` pointing at it.
 Use HTTPS (most hosts do this for you). Players open the site on their phone; staff open `/staff.html` on the shop's
 phone or tablet. Scanning a coupon's QR code with the phone camera opens the coupon desk with the code filled in.
 
@@ -211,7 +236,8 @@ phone or tablet. Scanning a coupon's QR code with the phone camera opens the cou
 | `js/account.js` | Start screen: players on this device (name + optional PIN) and phone/email sign-in |
 | `js/config.js` | Where the rewards server is (`apiBase`) |
 | `staff.html`, `js/staff.js` | Coupon desk for staff: PIN login, check / scan a code, mark as used |
-| `server/server.js` | Node server: serves the game, rewards API, daily caps, coupon codes |
+| `server/server.js` | Node server: serves the game, rewards API, daily caps, coupon codes, leaderboard, online saves |
+| `server/store.js` | Where the server keeps its data: JSON files, or PostgreSQL / Neon when `DATABASE_URL` is set |
 | `server/rewards.json` | The real rewards menu |
 | `server/social.json` | Instagram follow bonuses |
 | `img/` | Logo, wordmark and icons |

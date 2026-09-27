@@ -7,7 +7,8 @@
 //   PORT            port to listen on (default 8080)
 //   STAFF_PIN       PIN for the staff page (required, at least 4 digits)
 //   DAILY_COIN_CAP  most coins one player can earn per day (default 40)
-//   DATA_DIR        where the database file is kept (default server/data)
+//   DATA_DIR        where the data files are kept when DATABASE_URL is not set (default server/data)
+//   DATABASE_URL    PostgreSQL connection string, e.g. from neon.tech (run "npm install" first); see server/store.js
 //   ALLOWED_ORIGIN  extra origin allowed to call the API (optional, e.g. https://cani.example.com)
 //   TZ              time zone used for "per day" limits, e.g. Europe/Ljubljana
 //
@@ -26,7 +27,6 @@ const PORT = +process.env.PORT || 8080;
 const STAFF_PIN = String(process.env.STAFF_PIN || '');
 const DAILY_CAP = +process.env.DAILY_COIN_CAP || 40;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
-const DB_FILE = path.join(DATA_DIR, 'db.json');
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || '';
 const MAX_EARN_PER_CALL = 25;
 const MIN_EARN_INTERVAL_MS = 4000;
@@ -44,28 +44,40 @@ const REWARDS = JSON.parse(fs.readFileSync(path.join(__dirname, 'rewards.json'),
 // one-time coin bonuses for following on Instagram (Instagram can't tell us who follows, so this is on trust)
 const SOCIAL = JSON.parse(fs.readFileSync(path.join(__dirname, 'social.json'), 'utf8'));
 
-// ---------- tiny JSON database ----------
+// ---------- data: JSON files, or PostgreSQL / Neon when DATABASE_URL is set (server/store.js) ----------
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
-let db = { players: {}, coupons: {}, log: [], contacts: {}, scores: {} };
-try { db = { ...db, ...JSON.parse(fs.readFileSync(DB_FILE, 'utf8')) }; } catch (e) { /* first run */ }
+const store = require('./store')({ dataDir: DATA_DIR, databaseUrl: process.env.DATABASE_URL || '' });
+let db = { players: {}, coupons: {}, log: [], contacts: {}, scores: {} };   // loaded in start()
 
-let saveTimer = null;
+// Changes are written shortly after they happen, one write at a time; a failed write is retried
+let saveTimer = null, flushing = null, dirty = false;
 function save() {
-  if (saveTimer) return;
-  saveTimer = setTimeout(() => {
-    saveTimer = null;
-    const tmp = DB_FILE + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify(db));
-    fs.renameSync(tmp, DB_FILE);
-  }, 200);
+  dirty = true;
+  if (saveTimer || flushing) return;
+  saveTimer = setTimeout(flush, 200);
+}
+async function flush() {
+  saveTimer = null;
+  if (!dirty) return;
+  dirty = false;
+  flushing = store.flush(db).catch(e => {
+    console.error('saving data failed, retrying:', e.message);
+    dirty = true;
+    return new Promise(res => setTimeout(res, 3000));
+  });
+  await flushing;
+  flushing = null;
+  if (dirty) saveTimer = setTimeout(flush, 200);
 }
 
 const sha = s => crypto.createHash('sha256').update(s).digest('hex');
-// a player can be signed in on several devices: one token per device
-for (const p of Object.values(db.players)) { if (!p.tokenHashes) p.tokenHashes = p.tokenHash ? [p.tokenHash] : []; delete p.tokenHash; }
 const byToken = new Map();
-for (const p of Object.values(db.players)) for (const h of p.tokenHashes) byToken.set(h, p);
+function indexPlayers() {
+  // a player can be signed in on several devices: one token per device
+  for (const p of Object.values(db.players)) { if (!p.tokenHashes) p.tokenHashes = p.tokenHash ? [p.tokenHash] : []; delete p.tokenHash; }
+  for (const p of Object.values(db.players)) for (const h of p.tokenHashes) byToken.set(h, p);
+}
 const pendingCodes = new Map();   // contact -> { hash, expires, tries }
 const today = () => new Date().toLocaleDateString('sv-SE');     // YYYY-MM-DD in the server's time zone
 const DAY = 24 * 3600 * 1000;
@@ -195,21 +207,9 @@ function playerState(p) {
   return { id: p.id, balance: p.balance, earnedToday, cap: DAILY_CAP, coupons, signedIn: !!p.contact, contact: p.contact ? mask(p.contact) : '', bonuses: Object.keys(p.bonuses || {}) };
 }
 
-// ---------- game saves (one file per player, so the database stays small) ----------
+// ---------- game saves (kept apart from the rest, so the main data stays small) ----------
 
-const SAVE_DIR = path.join(DATA_DIR, 'saves');
 const MAX_SAVE = 400000;
-fs.mkdirSync(SAVE_DIR, { recursive: true });
-const saveFile = id => path.join(SAVE_DIR, id.replace(/[^\w-]/g, '') + '.json');
-
-function readSave(p) {
-  try { return JSON.parse(fs.readFileSync(saveFile(p.id), 'utf8')); } catch (e) { return null; }
-}
-function writeSave(p, save) {
-  const f = saveFile(p.id), tmp = f + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(save));
-  fs.renameSync(tmp, f);
-}
 
 // ---------- API ----------
 
@@ -298,20 +298,20 @@ const api = {
   },
 
   // Each signed-in player's shop is kept on the server, so the same account continues on any device
-  'GET /api/save': (req, p) => {
+  'GET /api/save': async (req, p) => {
     if (!p.contact) return { save: null };
-    const s = readSave(p);
+    const s = await store.readSave(p.id);
     return { save: s ? s.save : null, savedAt: s ? s.savedAt : 0 };
   },
-  'POST /api/save': (req, p, body) => {
+  'POST /api/save': async (req, p, body) => {
     if (!p.contact) throw { code: 403, error: 'Sign in to save your shop online' };
     if (limited('save:' + p.id, 12, 60e3)) throw { code: 429, error: 'Saving too often' };
     const save = body.save;
     if (!save || typeof save !== 'object' || save.version !== 1 || !Array.isArray(save.items)) throw { code: 400, error: 'Not a game save' };
     const savedAt = Math.min(Date.now(), Math.floor(+body.savedAt) || Date.now());
-    const old = readSave(p);
+    const old = await store.readSave(p.id);
     if (old && old.savedAt > savedAt) return { ok: false, stale: true, savedAt: old.savedAt };   // a newer save from another device wins
-    writeSave(p, { savedAt, save });
+    await store.writeSave(p.id, { savedAt, save });
     return { ok: true, savedAt };
   },
 
@@ -338,8 +338,8 @@ const api = {
   },
 
   // "New game": forget the online save too
-  'POST /api/save/delete': (req, p) => {
-    try { fs.unlinkSync(saveFile(p.id)); } catch (e) { /* no save */ }
+  'POST /api/save/delete': async (req, p) => {
+    await store.deleteSave(p.id);
     return { ok: true };
   },
 
@@ -437,7 +437,8 @@ function serveStatic(req, res, urlPath) {
   let rel = decodeURIComponent(urlPath);
   if (rel === '/') rel = '/index.html';
   const file = path.resolve(ROOT, '.' + rel);
-  const blocked = !file.startsWith(ROOT + path.sep) || rel.split('/').some(seg => seg.startsWith('.')) || file.startsWith(path.join(ROOT, 'server') + path.sep);
+  const blocked = !file.startsWith(ROOT + path.sep) || rel.split('/').some(seg => seg.startsWith('.') || seg === 'node_modules')
+    || file.startsWith(path.join(ROOT, 'server') + path.sep) || /^\/?package(-lock)?\.json$/.test(rel);
   if (blocked) { res.writeHead(404); return res.end('Not found'); }
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404); return res.end('Not found'); }
@@ -461,7 +462,42 @@ const server = http.createServer((req, res) => {
   serveStatic(req, res, url.pathname);
 });
 
-server.listen(PORT, () => {
-  console.log(`CANI server on http://localhost:${PORT}  (staff page: /staff.html, daily coin cap ${DAILY_CAP})`);
-  console.log(`Sign-in: email ${MAIL ? 'via Resend' : AUTH_DEV ? 'dev mode' : 'OFF'}, SMS ${SMS ? 'via Twilio' : AUTH_DEV ? 'dev mode' : 'OFF'}`);
-});
+async function start() {
+  try { db = await store.load(); }
+  catch (e) {
+    console.error(`Could not open the data store (${store.kind}): ${e.message}`);
+    process.exit(1);
+  }
+  // first start on an empty database: bring over what the JSON files already hold (players, coupons, saves)
+  if (process.env.DATABASE_URL && !Object.keys(db.players).length && fs.existsSync(path.join(DATA_DIR, 'db.json'))) {
+    try {
+      const files = require('./store')({ dataDir: DATA_DIR });
+      const old = await files.load();
+      if (Object.keys(old.players).length) {
+        await store.flush(old);
+        const ids = fs.readdirSync(path.join(DATA_DIR, 'saves')).filter(f => f.endsWith('.json')).map(f => f.slice(0, -5));
+        for (const id of ids) { const rec = await files.readSave(id); if (rec) await store.writeSave(id, rec); }
+        db = old;
+        console.log(`Moved ${Object.keys(old.players).length} players, ${Object.keys(old.coupons).length} coupons and ${ids.length} saves from ${DATA_DIR} into the database`);
+      }
+    } catch (e) { console.error('Could not move the old data files into the database:', e.message); process.exit(1); }
+  }
+  indexPlayers();
+  server.listen(PORT, () => {
+    console.log(`CANI server on http://localhost:${PORT}  (staff page: /staff.html, daily coin cap ${DAILY_CAP})`);
+    console.log(`Data: ${store.kind} · ${Object.keys(db.players).length} players, ${Object.keys(db.coupons).length} coupons`);
+    console.log(`Sign-in: email ${MAIL ? 'via Resend' : AUTH_DEV ? 'dev mode' : 'OFF'}, SMS ${SMS ? 'via Twilio' : AUTH_DEV ? 'dev mode' : 'OFF'}`);
+  });
+}
+
+// write pending changes before stopping (Ctrl+C, or the host restarting the server)
+for (const sig of ['SIGINT', 'SIGTERM']) {
+  process.on(sig, async () => {
+    clearTimeout(saveTimer);
+    if (flushing) await flushing;
+    try { await store.flush(db); } catch (e) { console.error('final save failed:', e.message); }
+    process.exit(0);
+  });
+}
+
+start();
