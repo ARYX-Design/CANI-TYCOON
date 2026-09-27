@@ -83,7 +83,7 @@ const Renderer = {
     // depth-sorted entities
     const list = [];
     for (const it of s.items) list.push({ d: it.x + it.y + 1, fn: () => this.drawItem(ctx, it, t) });
-    for (const p of [...Game.customers, ...Game.barbers]) list.push({ d: p.x + p.y + 0.02, fn: () => { const q = iso(p.x, p.y); drawPerson(ctx, p, q.x, q.y, t); } });
+    for (const p of [...Game.customers, ...Game.barbers, ...Game.students]) list.push({ d: p.x + p.y + 0.02, fn: () => { const q = iso(p.x, p.y); drawPerson(ctx, p, q.x, q.y, t); } });
     list.sort((a, b) => a.d - b.d);
     list.forEach(e => e.fn());
 
@@ -476,12 +476,17 @@ const Renderer = {
         nameTag(ctx, `✂ ${b.data.name}`, p.x, p.y, b.owner ? '#f1c453' : '#fff');
       }
     }
+    for (const a of Game.students) {
+      if (!UI.showNames && a.state !== 'helping' && a.state !== 'sweeping') continue;
+      const p = isoK(a.x, a.y, 64);
+      nameTag(ctx, `🧑‍🎓 ${a.name}${a.state === 'helping' ? ' · helping' : a.state === 'sweeping' ? ' · sweeping' : ''}`, p.x, p.y, '#c9a24f');
+    }
     for (const c of Game.customers) {
       if (!c.vip && c !== hovered && c !== Game.selected) continue;
       const p = isoK(c.x, c.y, (c.sitting ? 17 : 14) + 50);
       nameTag(ctx, `${ORIGINS[c.origin].flag} ${c.name}`, p.x, p.y - 10, c.vip ? '#f1c453' : '#fff');
     }
-    for (const a of [...Game.customers, ...Game.barbers]) {
+    for (const a of [...Game.customers, ...Game.barbers, ...Game.students]) {
       if (!a.say || a.say.delay > 0 || (a.alpha ?? 1) < 0.5) continue;
       const p = isoK(a.x, a.y, (a.sitting ? 17 : 14) + 52);
       speechBubble(ctx, a.say.text, p.x + 10, p.y - 12, Math.min(1, a.say.life * 2));

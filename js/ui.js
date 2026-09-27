@@ -99,7 +99,7 @@ function updateInspector() {
     const moodIcon = a.barber ? '✂️' : { happy: '😊', angry: '😡', sad: '😞' }[a.mood] || '🙂';
     const details = a.barber
       ? `<div class="insp-row">Skill ${starsHTML(barberSkill(who), true)} · Speed <b>${Math.round(who.speed * 100)}%</b>${who.owner ? '' : ` · ${fmt(who.wage)}/day`}</div>`
-      : `<div class="insp-row">${serviceIcon(a.service)} Wants a <b>${a.service.name}</b> · ${fmt(a.service.price * PRICE_LEVELS[Game.state.priceLevel].price)}</div>`;
+      : `<div class="insp-row">${serviceIcon(a.service)} Wants a <b>${a.service.name}</b> · ${fmt(a.service.price * priceMult())}</div>`;
     el.innerHTML = `<button class="insp-close" data-insp="close" aria-label="Close">✕</button>
       <div class="insp-head"><span class="insp-mood">${moodIcon}</span>
         <div><div class="insp-name">${fullName(who)}${who.owner ? ' <span class="badge">Owner</span>' : ''}</div>
@@ -134,6 +134,7 @@ function itemInspector(el, item) {
     <div class="insp-row">${def.desc}</div>
     ${busy ? '<div class="insp-row muted">In use right now – you can move or remove it when it is free.</div>' : ''}
     <div class="insp-actions">
+      <button class="btn small" data-insp="rotateItem">🔄 Rotate</button>
       <button class="btn small" data-insp="moveItem" ${busy ? 'disabled' : ''}>📦 Move</button>
       <button class="btn small danger" data-insp="removeItem" ${busy ? 'disabled' : ''}>🗑️ Remove (+${def.coinCost ? '⭐' + refund : fmt(refund)})</button>
     </div>`;
@@ -164,7 +165,8 @@ function handleInspectClick(e) {
   if (r && !r.ok && r.reason) { sfx('error'); toast(r.reason, 2200, 'warn'); }
   if (b.dataset.insp === 'close') { Game.selected = null; Game.selectedItem = null; }
   const it = Game.selectedItem;
-  if (b.dataset.insp === 'moveItem' && it) { setTool({ mode: 'move', type: it.type, itemId: it.id }); Game.selectedItem = null; }
+  if (b.dataset.insp === 'moveItem' && it) { setTool({ mode: 'move', type: it.type, itemId: it.id, rot: it.rot || 0 }); Game.selectedItem = null; }
+  if (b.dataset.insp === 'rotateItem' && it) rotateItem(it);
   if (b.dataset.insp === 'removeItem' && it) {
     const rr = sellItem(it);
     if (!rr.ok) toast(rr.reason, 2000, 'warn');
@@ -486,8 +488,8 @@ function setTool(tool) {
   hint.innerHTML = tool.mode === 'sell'
     ? `<span>🗑️ <b>Remove mode</b> — tap furniture to remove it (50% back)</span><button class="btn small" data-hint="cancel">Done</button>`
     : tool.mode === 'move'
-    ? `<span>📦 Moving <b>${ITEMS[tool.type].name}</b> — tap a glowing tile</span><button class="btn small" data-hint="cancel">Cancel</button>`
-    : `<span>${ITEMS[tool.type].icon} Placing <b>${ITEMS[tool.type].name}</b> (${fmt(ITEMS[tool.type].cost)}) — tap a tile</span><button class="btn small" data-hint="cancel">Done</button>`;
+    ? `<span>📦 Moving <b>${ITEMS[tool.type].name}</b> — tap a glowing tile</span><button class="btn small" data-hint="rotate" title="Rotate (T)">🔄 Rotate</button><button class="btn small" data-hint="cancel">Cancel</button>`
+    : `<span>${ITEMS[tool.type].icon} Placing <b>${ITEMS[tool.type].name}</b> (${fmt(ITEMS[tool.type].cost)}) — tap a tile</span><button class="btn small" data-hint="rotate" title="Rotate (T)">🔄 Rotate</button><button class="btn small" data-hint="cancel">Done</button>`;
   if (UI.panel === 'build') renderPanel();
 }
 
@@ -495,12 +497,12 @@ function toolClick(tile) {
   const tool = UI.tool;
   if (!tool) return;
   if (tool.mode === 'place') {
-    const r = placeItem(tool.type, tile.x, tile.y);
+    const r = placeItem(tool.type, tile.x, tile.y, tool.rot || 0);
     if (!r.ok) toast(r.reason, 1800, 'warn');
     else if (Game.state.money < ITEMS[tool.type].cost) setTool(null);
   } else if (tool.mode === 'move') {
     const item = Game.state.items.find(i => i.id === tool.itemId);
-    const r = item ? moveItem(item, tile.x, tile.y) : { ok: false };
+    const r = item ? moveItem(item, tile.x, tile.y, tool.rot) : { ok: false };
     if (!r.ok) { if (r.reason) toast(r.reason, 1800, 'warn'); }
     else { setTool(null); Game.selectedItem = item; toast(`📦 ${ITEMS[item.type].name} moved`); }
   } else if (tool.mode === 'sell') {

@@ -610,11 +610,17 @@ function updateTv(t) {
 }
 
 function buildItemModel(type) {
+  // models are built in tile space (0..1); a pivot at the tile centre turns them in 90° steps
   const g = new THREE.Group();
+  const pivot = new THREE.Group();
+  pivot.position.set(0.5, 0, 0.5);
   const inner = new THREE.Group();
-  g.add(inner);
+  inner.position.set(-0.5, 0, -0.5);
+  pivot.add(inner);
+  g.add(pivot);
   (Models[type] || Models.plant)(inner);
   g.userData.tick = inner.userData.tick;
+  g.userData.pivot = pivot;
   return g;
 }
 
@@ -913,7 +919,15 @@ function agentAngle(ud, a) {
   // face movement, the chair, or the station being worked on
   const dx = a.x - ud.lx, dy = a.y - ud.ly;
   ud.lx = a.x; ud.ly = a.y;
-  if (a.sitting) return 0;
+  if (a.sitting) {
+    // face the way the chair is turned
+    const it = itemAt(Math.floor(a.x), Math.floor(a.y));
+    return ((it && it.rot) || 0) * Math.PI / 2;
+  }
+  if (a.student && a.task && (a.state === 'helping' || a.state === 'sweeping')) {
+    const t = a.task.customer ? a.task.customer.station : a.task.pile;
+    if (t && Math.hypot(t.x + 0.5 - a.x, t.y + 0.5 - a.y) > 0.1) return Math.atan2(t.x + 0.5 - a.x, t.y + 0.5 - a.y);
+  }
   if (a.barber && a.job && (a.state === 'working' || a.state === 'waitCustomer')) {
     const st = a.job.station;
     return Math.atan2(st.x + 0.5 - a.x, st.y + 0.5 - a.y);
@@ -925,7 +939,7 @@ function agentAngle(ud, a) {
 
 function syncPeople(t) {
   const alive = new Set();
-  for (const a of [...Game.customers, ...Game.barbers]) {
+  for (const a of [...Game.customers, ...Game.barbers, ...Game.students]) {
     alive.add(a.id);
     let g = R3.people.get(a.id);
     if (!g) { g = buildPerson(a); R3.people.set(a.id, g); R3.world.add(g); }
@@ -1027,6 +1041,7 @@ function syncItems(t) {
       R3.world.add(o.group);
     }
     o.group.position.set(it.x, 0, it.y);
+    o.group.userData.pivot.rotation.y = (it.rot || 0) * Math.PI / 2;
     if (o.group.userData.tick) o.group.userData.tick(t);
   }
   for (const [id, o] of R3.items) if (!alive.has(id)) { disposeGroup(o.group); R3.world.remove(o.group); R3.items.delete(id); }
@@ -1142,6 +1157,7 @@ function syncFx(t) {
           R3.fx.add(g);
         }
         g.position.set(hv.x, 0, hv.y);
+        g.userData.pivot.rotation.y = (UI.tool.rot || 0) * Math.PI / 2;
         g.visible = true;
       }
     } else if (UI.tool.mode === 'sell' && itemAt(hv.x, hv.y)) place(hv.x, hv.y, '#e63946', 0.5);

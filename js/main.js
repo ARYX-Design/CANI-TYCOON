@@ -36,7 +36,10 @@
   $('#panelBody').addEventListener('change', handlePanelChange);
   $('#panelBody').addEventListener('keydown', handlePanelKey);
   $('#inspect').addEventListener('click', handleInspectClick);
-  $('#buildHint').addEventListener('click', e => { if (e.target.closest('[data-hint="cancel"]')) setTool(null); });
+  $('#buildHint').addEventListener('click', e => {
+    if (e.target.closest('[data-hint="cancel"]')) setTool(null);
+    if (e.target.closest('[data-hint="rotate"]') && UI.tool) { UI.tool.rot = ((UI.tool.rot || 0) + 1) & 3; sfx('click'); }
+  });
   $('#speedBtns').addEventListener('click', e => {
     const b = e.target.closest('button');
     if (!b) return;
@@ -53,6 +56,11 @@
     if (e.key === ' ') { Game.paused = !Game.paused; e.preventDefault(); }
     if (['1', '2', '3'].includes(e.key)) { Game.paused = false; Game.speed = +e.key; }
     if (e.key === 'b') openPanel('build');
+    // T turns the furniture being placed, or the selected piece
+    if (e.key === 't' || e.key === 'T') {
+      if (UI.tool && UI.tool.mode !== 'sell') UI.tool.rot = ((UI.tool.rot || 0) + 1) & 3;
+      else if (Game.selectedItem) { rotateItem(Game.selectedItem); UI.inspectKey = ''; }
+    }
     // hold Q / E to spin the 3D view
     if ((e.key === 'q' || e.key === 'Q') && !e.repeat) VIEW.spin = -1;
     if ((e.key === 'e' || e.key === 'E') && !e.repeat) VIEW.spin = 1;

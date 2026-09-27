@@ -4,6 +4,7 @@ const Game = {
   state: null,
   customers: [],
   barbers: [],        // runtime agents, one per state.barbers entry
+  students: [],       // hair-school student helpers
   floaters: [],       // floating texts (+$20, emotes)
   particles: [],      // hair clippings
   sparkles: [],       // fresh-cut sparkles
@@ -89,6 +90,8 @@ function initWorld(state) {
   if (state.candidates.some(c => !c.origin)) state.candidates = [];
   if (!state.candidates.length) state.candidates = genCandidates(3);
   state.barbers.forEach((b, i) => spawnBarberAgent(b, i));
+  Game.students = [];
+  syncStudents(false);
 }
 
 // ---------- helpers ----------
@@ -161,7 +164,13 @@ function decorScore() {
 
 function patienceBonus() {
   const fromItems = Game.state.items.reduce((s, i) => s + (itemPowered(i) ? ITEMS[i.type].patience || 0 : 0), 0);
-  return Math.min(0.6, fromItems + Game.state.upgrades.loyalty * 0.1);
+  return Math.min(1, fromItems + Game.state.upgrades.loyalty * 0.1 + (Game.state.upgrades.comfort || 0) * 0.1);
+}
+
+// price level × the PR upgrade
+function priceMult() {
+  const s = Game.state;
+  return PRICE_LEVELS[s.priceLevel].price * (1 + (s.upgrades.prestige || 0) * 0.08);
 }
 
 function availableServices() {
@@ -253,13 +262,13 @@ function canPlace(type, x, y, opts = {}) {
   return { ok: true };
 }
 
-function placeItem(type, x, y) {
+function placeItem(type, x, y, rot = 0) {
   const r = canPlace(type, x, y);
   if (!r.ok) return r;
   const s = Game.state;
   if (ITEMS[type].coinCost) s.coins -= ITEMS[type].coinCost;
   else { s.money -= itemCost(type); consumeArmed('furniture30'); }
-  s.items.push({ id: s.nextId++, type, x, y });
+  s.items.push({ id: s.nextId++, type, x, y, rot: rot & 3 });
   sfx('place');
   emit('items');
   return r;
@@ -278,10 +287,19 @@ function canMoveTo(item, x, y) {
   return r;
 }
 
-function moveItem(item, x, y) {
+// Turn a piece of furniture 90° clockwise (anyone sitting on it turns with it)
+function rotateItem(item, dir = 1) {
+  item.rot = ((item.rot || 0) + dir + 4) & 3;
+  sfx('place');
+  emit('items');
+  return { ok: true };
+}
+
+function moveItem(item, x, y, rot) {
   const r = canMoveTo(item, x, y);
   if (!r.ok) return r;
   item.x = x; item.y = y;
+  if (rot !== undefined) item.rot = rot & 3;
   sfx('place');
   emit('items');
   return { ok: true };
@@ -428,6 +446,122 @@ function spawnBarberAgent(data, index, fromDoor) {
   return a;
 }
 
+// ---------- hair-school students (helpers you can see) ----------
+// Each student picks the most useful job: pay a bill that is due, sweep hair, or help a barber with a cut.
+const STUDENT = { assist: 1.35, sweepTime: 1.2 };
+
+function syncStudents(fromDoor = true) {
+  const want = Game.state.upgrades.students || 0;
+  while (Game.students.length < want) {
+    const origin = Math.random() < SLOVENIAN_SHARE ? 'si' : 'al';
+    const female = Math.random() < 0.4;
+    const d = doorTile();
+    const free = freeFloorTiles();
+    const t = fromDoor ? d : free[(Game.students.length * 5 + 2) % Math.max(1, free.length)] || d;
+    const a = {
+      id: Game.uid++, student: true, origin, female,
+      name: pick(NAMES[origin][female ? 'f' : 'm']), surname: pick(NAMES[origin].surnames),
+      skin: pick(SKIN_TONES), hair: pick(HAIR_COLORS), hairStyle: pick(female ? HAIR_STYLES_F : HAIR_STYLES_M),
+      shirt: '#c9a24f', pants: '#1d3557', shoes: '#e9ecef', stripes: false, groomed: true,
+      x: t.x + 0.5, y: fromDoor ? -0.2 : t.y + 0.5, path: [], speed: 2.0, state: 'idle', task: null,
+      dir: 1, alpha: 1, mood: 'happy', idleT: 0,
+    };
+    if (fromDoor) {
+      const spot = free.find(o => o.y > 1) || d;
+      a.path = [{ x: d.x, y: d.y }, ...(findPath(d.x, d.y, spot.x, spot.y) || [])];
+      say(a, 'greet', 0.3);
+    }
+    Game.students.push(a);
+  }
+}
+
+function studentFree(a) { a.state = 'idle'; a.task = null; a.working = false; }
+
+function updateStudent(a, dt, dtMin) {
+  const s = Game.state;
+  const walked = moveAgent(a, dt);
+  if (a.state === 'idle') {
+    a.think = (a.think || 0) - dt;
+    if (a.think > 0) return;
+    a.think = 0.4;
+    // 1) bills that are due today or late – paid from the shop's money
+    const due = s.bills.filter(b => s.day >= b.due && s.money >= b.amount).sort((x, y) => x.due - y.due)[0];
+    if (due && !Game.nightMode) {
+      const name = BILL_TYPES[due.type].name, amount = due.amount;
+      if (payBill(due.id).ok) {
+        const p = iso(a.x, a.y, 70);
+        addFloater(p.x, p.y, `🧾 Paid −$${amount}`, '#bde0fe', 2);
+        toast(`🧑‍🎓 ${a.name} paid the ${name} bill (${fmt(amount)})`, 2600);
+        return;
+      }
+    }
+    // 2) hair on the floor
+    const taken = new Set(Game.students.filter(o => o.task && o.task.pile).map(o => o.task.pile));
+    const from = tileOf(a);
+    const pile = Game.piles.filter(p => !taken.has(p))
+      .sort((p, q) => (Math.abs(p.x - from.x) + Math.abs(p.y - from.y)) - (Math.abs(q.x - from.x) + Math.abs(q.y - from.y)))
+      .find(p => walkable(p.x, p.y) ? findPath(from.x, from.y, p.x, p.y) : false);
+    if (pile) {
+      a.task = { pile };
+      a.state = 'toPile';
+      a.path = findPath(from.x, from.y, pile.x, pile.y) || [];
+      return;
+    }
+    // 3) help a barber who is cutting and has no student yet
+    const c = Game.customers.find(o => o.inService && o.state === 'atStation' && !o.assist && o.cutBy);
+    if (c) {
+      const spot = studentSpot(c.station, a);
+      const path = spot && findPath(from.x, from.y, spot.x, spot.y);
+      if (path) {
+        c.assist = a;
+        a.task = { customer: c, spot };
+        a.state = 'toHelp';
+        a.path = path;
+        return;
+      }
+    }
+    // nothing to do: stroll a little
+    a.idleT += 0.4;
+    if (a.idleT > 5 && !a.path.length) {
+      a.idleT = 0;
+      const opts = freeFloorTiles().filter(o => Math.abs(o.x - from.x) + Math.abs(o.y - from.y) <= 3 && o.y > 0);
+      if (opts.length) { const o = pick(opts); a.path = findPath(from.x, from.y, o.x, o.y) || []; }
+    }
+    return;
+  }
+  if (a.state === 'toPile') {
+    if (!Game.piles.includes(a.task.pile)) return studentFree(a);   // someone else swept it
+    if (walked) { a.state = 'sweeping'; a.sweepT = STUDENT.sweepTime; a.working = true; }
+    return;
+  }
+  if (a.state === 'sweeping') {
+    a.sweepT -= dt;
+    if (a.sweepT <= 0) { if (Game.piles.includes(a.task.pile)) sweep(a.task.pile); studentFree(a); }
+    return;
+  }
+  const c = a.task && a.task.customer;
+  const stillCutting = c && c.inService && c.state === 'atStation' && c.assist === a;
+  if (!stillCutting) { if (c && c.assist === a) c.assist = null; return studentFree(a); }
+  if (a.state === 'toHelp' && walked) {
+    a.state = 'helping';
+    a.working = true;
+    if (Math.random() < 0.4) say(a, 'barberChat', 0, c.origin);
+  }
+}
+
+// a free tile next to the station that the barber is not standing on
+function studentSpot(st, student) {
+  const busy = new Set([...Game.barbers, ...Game.students.filter(o => o !== student)].map(o => `${Math.floor(o.x)},${Math.floor(o.y)}`));
+  Game.barbers.forEach(b => { if (b.job) busy.add(`${b.job.spot.x},${b.job.spot.y}`); });
+  Game.students.forEach(o => { if (o !== student && o.task && o.task.spot) busy.add(`${o.task.spot.x},${o.task.spot.y}`); });
+  const reach = reachableFromDoor();
+  for (const [dx, dy] of [[-1, 0], [0, 1], [0, -1], [1, 0], [-1, 1], [1, 1], [-1, -1], [1, -1]]) {
+    const x = st.x + dx, y = st.y + dy;
+    if (walkable(x, y) && reach.has(y * 100 + x) && !busy.has(`${x},${y}`)) return { x, y };
+  }
+  return null;
+}
+
 function freeFloorTiles() {
   const out = [];
   const n = gridSize();
@@ -450,6 +584,12 @@ function buyUpgrade(key) {
   s.money -= cost;
   consumeArmed('upgrade20');
   s.upgrades[key]++;
+  if (key === 'students') {
+    syncStudents(true);
+    toast(`🧑‍🎓 A hair-school student joined the team (${s.upgrades[key]}/${u.costs.length})! They sweep, pay due bills and help with cuts.`, 3500);
+    sfx('hire');
+    return { ok: true };
+  }
   toast(u.skill ? `${u.icon} Your barbers learned ${u.name}! ${u.learned || ''}`
     : u.helper ? `${u.icon} ${u.name} hired! They'll handle that for you now.` : `${u.icon} ${u.name} upgraded to level ${s.upgrades[key]}!`);
   sfx('hire');
@@ -725,6 +865,7 @@ function update(dtReal) {
   if (hasHelper('receptionist')) autoSeat();
   else if (hasHelper('initiative')) barbersCallNext();
   assignBarbers();
+  for (const a of Game.students) updateStudent(a, dt, dtMin);
   if (hasHelper('cleaner') && Game.piles.length) {
     Game.cleanT = (Game.cleanT || 0) + dtMin;
     if (Game.cleanT > 25) { Game.cleanT = 0; sweep(Game.piles[0]); }
@@ -1084,7 +1225,9 @@ function updateCustomer(c, dt, dtMin) {
         c.progress = 0;
       }
       if (c.inService) {
-        c.progress += dtMin / c.duration;
+        // a hair-school student standing by makes the cut go faster
+        const assist = c.assist && c.assist.state === 'helping' && c.assist.task.customer === c ? STUDENT.assist : 1;
+        c.progress += dtMin / c.duration * assist;
         if (Math.random() < dt * 4 && c.service.station === 'chair') addHairBit(c);
         // steady snip-snip (or clipper buzz / running water) while the barber works
         c.sndT = (c.sndT === undefined ? 0 : c.sndT) - dt;
@@ -1221,7 +1364,7 @@ function finishService(c) {
   b.working = false;
   c.cutBy = null;
 
-  const price = Math.round(c.service.price * PRICE_LEVELS[s.priceLevel].price);
+  const price = Math.round(c.service.price * priceMult());
   const tip = Math.round(price * sat * 0.25 * (1 + s.upgrades.loyalty * 0.15) * (registers().length ? 1.1 : 1));
   c.bill = { price, tip };
   track('served');
@@ -1299,7 +1442,7 @@ function say(agent, kind, delay = 0, lang) {
 }
 
 function tickSpeech(dt) {
-  for (const a of [...Game.customers, ...Game.barbers]) {
+  for (const a of [...Game.customers, ...Game.barbers, ...Game.students]) {
     if (!a.say) continue;
     a.say.life -= dt;
     a.say.delay -= dt;
@@ -1476,7 +1619,7 @@ const SAVE_KEY = 'cani-barber-tycoon-save-v1';
 function saveGame() {
   try {
     const s = Game.state;
-    const items = s.items.map(({ id, type, x, y }) => ({ id, type, x, y }));
+    const items = s.items.map(({ id, type, x, y, rot }) => ({ id, type, x, y, rot: rot || 0 }));
     localStorage.setItem(SAVE_KEY, JSON.stringify({ ...s, items }));
   } catch (e) { /* storage unavailable */ }
 }

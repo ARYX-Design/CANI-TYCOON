@@ -91,10 +91,13 @@ const UPGRADES = {
   receptionist: { name: 'Receptionist', icon: '🛎️', desc: 'Seats waiting customers for you.', costs: [1200], stage: 1, helper: true },
   cashier:   { name: 'Cashier',          icon: '🧾', desc: 'Sends finished customers to pay and rings them up.', costs: [1800], stage: 2, helper: true },
   cleaner:   { name: 'Cleaner',          icon: '🧹', desc: 'Sweeps hair off the floor.', costs: [700], stage: 1, helper: true },
-  clippers:  { name: 'Pro Clippers',     icon: '✂️', desc: 'All services 15% faster per level.',      costs: [400, 1500, 5000] },
-  marketing: { name: 'Social Media Ads', icon: '📱', desc: '+20% more customers per level.',          costs: [300, 1200, 4000] },
-  academy:   { name: 'Barber Academy',   icon: '🎓', desc: '+0.5 skill for every barber per level.',  costs: [600, 2500, 8000] },
-  loyalty:   { name: 'Loyalty Cards',    icon: '💳', desc: '+15% tips and +10% patience per level.',  costs: [250, 1000, 3500] },
+  students:  { name: 'Hair School Students', icon: '🧑‍🎓', desc: 'Students sweep the floor, pay bills when they are due and help barbers cut (35% faster). +1 student per level.', costs: [500, 1600, 4000], helper: true, levels: true },
+  clippers:  { name: 'Pro Clippers',     icon: '✂️', desc: 'All services 15% faster per level.',      costs: [400, 1500, 5000, 11000, 22000, 40000] },
+  marketing: { name: 'Social Media Ads', icon: '📱', desc: '+20% more customers per level.',          costs: [300, 1200, 4000, 9000, 18000, 32000] },
+  academy:   { name: 'Barber Academy',   icon: '🎓', desc: '+0.5 skill for every barber per level.',  costs: [600, 2500, 8000, 15000, 28000] },
+  loyalty:   { name: 'Loyalty Cards',    icon: '💳', desc: '+15% tips and +10% patience per level.',  costs: [250, 1000, 3500, 8000, 16000] },
+  comfort:   { name: 'Comfy Waiting Area', icon: '🛋️', desc: 'Customers wait 10% longer per level.', costs: [350, 1400, 4500, 10000] },
+  prestige:  { name: 'Shop Reputation PR', icon: '📰', desc: '+8% prices per level – people pay more for a famous shop.', costs: [800, 3000, 9000, 20000, 38000] },
 };
 
 const BILL_TYPES = {

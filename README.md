@@ -40,6 +40,9 @@ You can also serve the folder, for example with `npx serve .`.
 - 💵 **Barbers Take Payment** (Barber skills, $600): when a cut is done the barber takes the money at the chair.
 - 📦 **Move / remove furniture:** tap any furniture (plants, TV, chairs…) to open its card, then **Move** it to a
   glowing tile or **Remove** it for 50% back. The Build tab also has a Remove tool for clearing several items.
+- 🔄 **Rotate furniture:** tap **Rotate** on a piece of furniture (or press **T**) to turn it 90°. While placing or
+  moving, the 🔄 button in the build bar (or **T**) turns the piece before you put it down. Customers sit facing
+  the way their chair is turned.
 - 🪑 **Placement rules:** barber chairs, sinks and color stations go **against a wall** (mirror and plumbing), with a
   free tile between stations and room for the barber; nothing can block the entrance. While placing, every allowed
   tile glows green and a blocked tap explains why.
@@ -47,6 +50,9 @@ You can also serve the folder, for example with `npx serve .`.
   customers, rain on screen) and the odd festival in the old town. The end-of-day screen forecasts tomorrow.
 - 📺 TVs play made-up Slovenian commercials (Kranjska klobasa, Bled, potica, Planica, Radio Gorenjc…).
 - 🛎️ Later you can hire a **Receptionist**, **Cashier** and **Cleaner** (Upgrades tab) to automate these jobs.
+- 🧑‍🎓 **Hair School Students** (Upgrades → Helpers, up to 3): students in gold shirts walk around the shop. They
+  pay bills on the day they are due (so no late fees), sweep up hair, and stand next to a barber to help with a
+  cut, which makes it 35% faster.
 - 🎵 Lo-fi background music (it gets richer as the shop grows) and sound effects: door bell, scissors, clippers, register,
   coins, sweeping. Toggle them with the 🎵 button or in the ⚙️ menu.
 
@@ -64,7 +70,8 @@ You can also serve the folder, for example with `npx serve .`.
 - **Staff**: hire barbers, each with their own skill, speed and daily wage. New candidates show up every morning.
   Rename any barber, Cani included, with the ✏️ button in the Staff panel or the Rename button on their card.
 - **Services**: new services unlock as you grow. Some need a Wash Sink or Color Station. Pick a Budget, Normal or Premium price level.
-- **Upgrades**: Pro Clippers, Social Media Ads, Barber Academy and Loyalty Cards.
+- **Upgrades**: Pro Clippers (6 levels), Social Media Ads (6), Barber Academy (5), Loyalty Cards (5),
+  Comfy Waiting Area (4 levels, customers wait 10% longer each) and Shop Reputation PR (5 levels, +8% prices each).
 - **Expand** through 5 locations. Each one needs money, reputation and a number of customers served:
 
 | # | Location | Size | Barbers | Rent/day |
