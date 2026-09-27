@@ -1614,29 +1614,38 @@ function startDay() {
 
 // ---------- save / load ----------
 
+// Every player (see account.js) has their own save; the plain key is the old single save from before profiles
 const SAVE_KEY = 'cani-barber-tycoon-save-v1';
+const saveKey = id => SAVE_KEY + ':' + id;
 
-function saveGame() {
-  try {
-    const s = Game.state;
-    const items = s.items.map(({ id, type, x, y, rot }) => ({ id, type, x, y, rot: rot || 0 }));
-    localStorage.setItem(SAVE_KEY, JSON.stringify({ ...s, items }));
-  } catch (e) { /* storage unavailable */ }
+function saveData() {
+  const s = Game.state;
+  s.savedAt = Date.now();
+  const items = s.items.map(({ id, type, x, y, rot }) => ({ id, type, x, y, rot: rot || 0 }));
+  return { ...s, items };
 }
 
-function loadGame() {
-  try {
-    const raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) return null;
-    const s = JSON.parse(raw);
-    if (!s || s.version !== 1) return null;
-    // a save made mid-day resumes at the start of that day (customers are not persisted)
-    s.time = OPEN_TIME;
-    s.today = freshToday(s.rep);
-    return s;
-  } catch (e) { return null; }
+function saveGame() {
+  if (Game.noSave || !Game.state || !Account.current) return;
+  const data = saveData();
+  try { localStorage.setItem(saveKey(Account.current.id), JSON.stringify(data)); } catch (e) { /* storage unavailable */ }
+  cloudPushSave(data);
+}
+
+function readLocalSave(id) {
+  try { const s = JSON.parse(localStorage.getItem(saveKey(id))); return s && s.version === 1 ? s : null; } catch (e) { return null; }
+}
+
+// Prepare a save for play: a save made mid-day resumes at the start of that day (customers are not persisted)
+function loadGame(s) {
+  if (!s || s.version !== 1) return null;
+  s.time = OPEN_TIME;
+  s.today = freshToday(s.rep);
+  return s;
 }
 
 function resetGame() {
-  try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ }
+  Game.noSave = true;       // don't let the save on page unload bring it back
+  try { localStorage.removeItem(saveKey(Account.current.id)); } catch (e) { /* ignore */ }
+  cloudDeleteSave();
 }

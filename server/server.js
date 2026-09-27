@@ -110,10 +110,10 @@ function send(res, code, obj, headers = {}) {
   res.end(body);
 }
 
-function readJson(req) {
+function readJson(req, limit = 10000) {
   return new Promise((resolve, reject) => {
     let size = 0, data = '';
-    req.on('data', ch => { size += ch.length; if (size > 10000) { reject(new Error('too_large')); req.destroy(); } else data += ch; });
+    req.on('data', ch => { size += ch.length; if (size > limit) { reject(new Error('too_large')); req.destroy(); } else data += ch; });
     req.on('end', () => { try { resolve(data ? JSON.parse(data) : {}); } catch (e) { reject(new Error('bad_json')); } });
     req.on('error', reject);
   });
@@ -193,6 +193,22 @@ function playerState(p) {
   const earnedToday = p.earnDay === today() ? p.earnedToday : 0;
   const coupons = Object.values(db.coupons).filter(c => c.playerId === p.id).sort((a, b) => b.createdAt - a.createdAt).map(couponView);
   return { id: p.id, balance: p.balance, earnedToday, cap: DAILY_CAP, coupons, signedIn: !!p.contact, contact: p.contact ? mask(p.contact) : '', bonuses: Object.keys(p.bonuses || {}) };
+}
+
+// ---------- game saves (one file per player, so the database stays small) ----------
+
+const SAVE_DIR = path.join(DATA_DIR, 'saves');
+const MAX_SAVE = 400000;
+fs.mkdirSync(SAVE_DIR, { recursive: true });
+const saveFile = id => path.join(SAVE_DIR, id.replace(/[^\w-]/g, '') + '.json');
+
+function readSave(p) {
+  try { return JSON.parse(fs.readFileSync(saveFile(p.id), 'utf8')); } catch (e) { return null; }
+}
+function writeSave(p, save) {
+  const f = saveFile(p.id), tmp = f + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(save));
+  fs.renameSync(tmp, f);
 }
 
 // ---------- API ----------
@@ -281,6 +297,30 @@ const api = {
     return { ok: true };
   },
 
+  // Each signed-in player's shop is kept on the server, so the same account continues on any device
+  'GET /api/save': (req, p) => {
+    if (!p.contact) return { save: null };
+    const s = readSave(p);
+    return { save: s ? s.save : null, savedAt: s ? s.savedAt : 0 };
+  },
+  'POST /api/save': (req, p, body) => {
+    if (!p.contact) throw { code: 403, error: 'Sign in to save your shop online' };
+    if (limited('save:' + p.id, 12, 60e3)) throw { code: 429, error: 'Saving too often' };
+    const save = body.save;
+    if (!save || typeof save !== 'object' || save.version !== 1 || !Array.isArray(save.items)) throw { code: 400, error: 'Not a game save' };
+    const savedAt = Math.min(Date.now(), Math.floor(+body.savedAt) || Date.now());
+    const old = readSave(p);
+    if (old && old.savedAt > savedAt) return { ok: false, stale: true, savedAt: old.savedAt };   // a newer save from another device wins
+    writeSave(p, { savedAt, save });
+    return { ok: true, savedAt };
+  },
+
+  // "New game": forget the online save too
+  'POST /api/save/delete': (req, p) => {
+    try { fs.unlinkSync(saveFile(p.id)); } catch (e) { /* no save */ }
+    return { ok: true };
+  },
+
   // "I followed on Instagram": once per player/account, on top of the daily cap
   'POST /api/bonus': (req, p, body) => {
     const s = SOCIAL.find(x => x.id === body.id);
@@ -344,7 +384,7 @@ const api = {
   },
 };
 
-const PLAYER_ROUTES = new Set(['GET /api/me', 'POST /api/earn', 'POST /api/redeem', 'POST /api/bonus', 'POST /api/auth/start', 'POST /api/auth/verify', 'POST /api/auth/logout']);
+const PLAYER_ROUTES = new Set(['GET /api/save', 'POST /api/save', 'POST /api/save/delete', 'GET /api/me', 'POST /api/earn', 'POST /api/redeem', 'POST /api/bonus', 'POST /api/auth/start', 'POST /api/auth/verify', 'POST /api/auth/logout']);
 const STAFF_ROUTES = new Set(['POST /api/staff/lookup', 'POST /api/staff/use', 'GET /api/staff/recent']);
 
 async function handleApi(req, res, route) {
@@ -358,7 +398,7 @@ async function handleApi(req, res, route) {
       if (limited('p:' + p.id, 60, 60e3)) return send(res, 429, { error: 'Slow down' });
     }
     if (STAFF_ROUTES.has(route) && !staffOk(req)) return send(res, 401, { error: 'Staff login required' });
-    const body = req.method === 'POST' ? await readJson(req) : {};
+    const body = req.method === 'POST' ? await readJson(req, route === 'POST /api/save' ? MAX_SAVE : 10000) : {};
     send(res, 200, await fn(req, p, body));
   } catch (e) {
     if (e && e.code && e.error) send(res, e.code, { error: e.error });

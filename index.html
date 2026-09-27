@@ -65,6 +65,7 @@
   </nav>
 
   <div id="modal" class="hidden"><div class="modal-card" id="modalCard"></div></div>
+  <div id="accountGate" hidden><div class="gate-card" id="gateCard"></div></div>
   <div id="bootError" hidden>
     <div class="boot-card">
       <b>The shop didn't open 😕</b>
@@ -87,7 +88,8 @@
       }
       window.addEventListener('error', function (e) { fail((e.message || 'Error') + (e.lineno ? ' (line ' + e.lineno + ')' : '')); });
       window.addEventListener('unhandledrejection', function (e) { fail(String(e.reason && e.reason.message || e.reason)); });
-      setTimeout(function () { fail(); }, 12000);
+      // (not while the start screen is waiting for someone to pick a player)
+      setTimeout(function check() { if (window.__caniWaiting) setTimeout(check, 3000); else fail(); }, 12000);
     })();
   </script>
 
@@ -101,6 +103,7 @@
   <script src="js/audio.js"></script>
   <script src="js/rewards.js"></script>
   <script src="js/cloud.js"></script>
+  <script src="js/account.js"></script>
   <script src="js/render3d.js"></script>
   <script src="js/street3d.js"></script>
   <script src="js/render.js"></script>

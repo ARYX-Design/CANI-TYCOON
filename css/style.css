@@ -376,3 +376,27 @@ body.view3d #rotateBtns { display: flex; }
 .boot-card b { font-size: 18px; }
 .boot-card p { margin: 0; color: var(--muted); line-height: 1.4; }
 .boot-card code { font-size: 11px; color: #ff9b9b; word-break: break-word; white-space: pre-wrap; }
+
+/* ---------- start screen: who's playing? ---------- */
+#accountGate { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 16px; overflow-y: auto;
+  background: radial-gradient(circle at 50% 20%, rgba(201, 162, 79, 0.18), transparent 60%), rgba(8, 9, 14, 0.92); backdrop-filter: blur(4px); }
+#accountGate[hidden] { display: none; }
+.gate-card { width: min(440px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: 20px; padding: 20px; display: grid; gap: 8px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5); }
+.gate-card h2 { margin: 6px 0 2px; font-size: 20px; }
+.gate-logo { display: grid; justify-items: center; gap: 2px; margin-bottom: 4px; }
+.gate-logo img { width: 130px; height: auto; }
+.gate-logo span { font-weight: 700; letter-spacing: 3px; text-transform: uppercase; font-size: 13px; }
+.gate-logo small { color: var(--gold); font-size: 12px; }
+.gate-list { display: grid; gap: 8px; max-height: 44vh; overflow-y: auto; }
+.gate-player { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); cursor: pointer; text-align: left; }
+.gate-player:hover, .gate-player:focus-visible { border-color: var(--gold); outline: none; }
+.gate-avatar { width: 40px; height: 40px; flex: none; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 18px; background: linear-gradient(135deg, #c9a24f, #8a6a24); color: #111; }
+.gate-main { flex: 1; min-width: 0; display: grid; }
+.gate-main b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gate-main small { color: var(--muted); font-size: 12px; }
+.gate-del { flex: none; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 13px; padding: 6px 8px; border-radius: 8px; cursor: pointer; }
+.gate-del:hover, .gate-del.sure { color: #fff; background: #b3202a; }
+.gate-btns { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; margin-top: 4px; }
+.gate-btns .btn { flex: 1 1 auto; }
+.gate-note { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.4; }
+.gate-card .field-error:empty { display: none; }

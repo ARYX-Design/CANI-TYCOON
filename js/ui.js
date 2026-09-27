@@ -377,6 +377,7 @@ function menuPanel() {
       <div><span>Days in business</span><b>${s.day}</b></div>
     </div>
     <div class="credit"><span>🎮 Game by <b>${CREATOR.name}</b> · Logo: CANI Barbershop</span><a class="ig-btn" href="${CREATOR.instagram}" target="_blank" rel="noopener">📸 @${CREATOR.name}</a></div>
+    <div class="account-row"><span>👤 Playing as <b>${escapeHtml(Account.current ? Account.current.name : '')}</b>${Account.current && Account.current.contact ? ' · ☁️ saved online' : ' · saved on this device'}</span><button class="btn small" data-action="switchPlayer">🔄 Switch player</button></div>
     <div class="menu-btns">
       ${R3.ok ? `<button class="btn" data-action="toggleView">${R3.active ? '🧊 View: 3D' : '🖼️ View: classic 2D'}</button>` : ''}
       <button class="btn" data-action="toggleMusic">${Sound.musicOn ? '🎵 Music on' : '🔇 Music off'}</button>
@@ -426,8 +427,9 @@ function handlePanelClick(e) {
     case 'recenter': Renderer.fitCamera(); break;
     case 'save': saveGame(); toast('Game saved 💾'); break;
     case 'help': showIntro(); break;
+    case 'switchPlayer': switchPlayer(); break;
     case 'reset':
-      showModal(`<h2>Start over?</h2><p>This deletes your save and sends you back to the garage.</p>`, [
+      showModal(`<h2>Start over?</h2><p>This deletes <b>${escapeHtml(Account.current.name)}</b>'s shop and sends them back to the garage. Other players keep theirs.</p>`, [
         { label: 'Cancel' },
         { label: 'Yes, start over', cls: 'danger', fn: () => { resetGame(); location.reload(); } },
       ]);

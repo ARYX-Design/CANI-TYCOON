@@ -12,8 +12,11 @@ const Cloud = {
   capNoticeDay: '',
 };
 
-const TOKEN_KEY = 'cani-player-token';
-const PENDING_KEY = 'cani-pending-coins';
+// each player on this device has their own server token and not-yet-sent coins
+const TOKEN_BASE = 'cani-player-token', PENDING_BASE = 'cani-pending-coins';
+const profileKey = base => base + (typeof Account !== 'undefined' && Account.current ? ':' + Account.current.id : '');
+const tokenKey = () => profileKey(TOKEN_BASE);
+const pendingKey = () => profileKey(PENDING_BASE);
 
 function store(key, val) { try { if (val === null) localStorage.removeItem(key); else localStorage.setItem(key, String(val)); } catch (e) { /* ignore */ } }
 function load(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
@@ -34,9 +37,10 @@ async function api(method, path, body) {
   } finally { clearTimeout(timer); }
 }
 
-async function cloudInit() {
+// Is there a rewards server? (checked once at start, before the sign-in screen)
+async function cloudProbe() {
   const base = typeof CANI_CONFIG !== 'undefined' ? CANI_CONFIG.apiBase : null;
-  if (base === null || (base === '' && !/^https?:$/.test(location.protocol))) return;
+  if (base === null || (base === '' && !/^https?:$/.test(location.protocol))) return false;
   Cloud.base = base;
   try {
     const r = await api('GET', '/api/rewards');
@@ -44,17 +48,29 @@ async function cloudInit() {
     Cloud.cap = r.cap;
     Cloud.signIn = r.signIn;
     if (Array.isArray(r.social)) Cloud.social = r.social;
-  } catch (e) { return; }   // no server here: stay offline
-  Cloud.token = load(TOKEN_KEY);
-  Cloud.pending = Math.max(0, +load(PENDING_KEY) || 0);
+    Cloud.available = true;
+  } catch (e) { Cloud.available = false; }   // no server here: stay offline
+  return Cloud.available;
+}
+
+async function cloudInit() {
+  if (!Cloud.available) return;
+  Cloud.token = load(tokenKey());
+  Cloud.pending = Math.max(0, +load(pendingKey()) || 0);
   try {
     if (Cloud.token) Cloud.me = await api('GET', '/api/me');
   } catch (e) { if (e.status === 401) Cloud.token = null; else return; }
+  if (!Cloud.token && Account.current && Account.current.contact) {
+    // this account was signed out elsewhere: sign in again from the start screen
+    toast('🔐 Please sign in again to keep saving online.', 4000, 'warn');
+    Account.current.contact = '';
+    saveProfiles();
+  }
   if (!Cloud.token) {
     try {
       const r = await api('POST', '/api/players');
       Cloud.token = r.token;
-      store(TOKEN_KEY, r.token);
+      store(tokenKey(), r.token);
       Cloud.me = r;
       // coins earned before the server was reachable are sent once (still capped per day)
       Cloud.pending += Game.state.coins;
@@ -74,7 +90,7 @@ function syncCoinDisplay() {
 function cloudEarn(n) {
   if (!Cloud.online) return;
   Cloud.pending += n;
-  store(PENDING_KEY, Cloud.pending);
+  store(pendingKey(), Cloud.pending);
 }
 
 async function flushCoins() {
@@ -96,7 +112,7 @@ async function flushCoins() {
     Cloud.pending += amount;   // try again later
   } finally {
     Cloud.flushing = false;
-    store(PENDING_KEY, Cloud.pending);
+    store(pendingKey(), Cloud.pending);
     syncCoinDisplay();
   }
 }
@@ -208,10 +224,11 @@ function openSignIn(afterId) {
     try {
       const r = await api('POST', '/api/auth/verify', { contact, code });
       Cloud.token = r.token;
-      store(TOKEN_KEY, r.token);
+      store(tokenKey(), r.token);
       Cloud.me = r;
       syncCoinDisplay();
       close();
+      await linkProfileToAccount(r);
       sfx('fanfare');
       toast(`✅ Signed in as ${r.contact}${r.merged ? ` · +⭐${r.merged} from this device` : ''}`, 3500);
       if (UI.panel === 'rewards') renderPanel();
@@ -228,15 +245,25 @@ function openSignIn(afterId) {
 
 async function signOut() {
   if (!Cloud.online) return;
+  saveGame();
+  await cloudPushSave(saveData(), true);
   try { await api('POST', '/api/auth/logout'); } catch (e) { /* token is dropped anyway */ }
-  store(TOKEN_KEY, null);
+  if (Account.current && Account.current.contact) {
+    // an online account: forget it on this device and go back to the start screen
+    store(tokenKey(), null);
+    forgetProfile(Account.current.id);
+    Game.noSave = true;
+    location.reload();
+    return;
+  }
+  store(tokenKey(), null);
   Cloud.token = null;
   Cloud.pending = 0;
-  store(PENDING_KEY, 0);
+  store(pendingKey(), 0);
   try {
     const r = await api('POST', '/api/players');
     Cloud.token = r.token;
-    store(TOKEN_KEY, r.token);
+    store(tokenKey(), r.token);
     Cloud.me = r;
   } catch (e) { Cloud.me = null; }
   syncCoinDisplay();
@@ -302,4 +329,58 @@ function socialCardsHTML() {
            <button class="btn small primary" data-action="igClaim" data-id="${s.id}" ${opened ? '' : 'disabled'} title="${opened ? '' : 'Tap Follow first'}">Claim ⭐ ${s.coins}</button>`}</div>
     </div>`;
   }).join('');
+}
+
+// ---------- online saves for signed-in players ----------
+
+let lastPush = 0, pushTimer = null;
+// send the shop to the server (at most every 20 s unless `now`)
+function cloudPushSave(data, now) {
+  if (!Cloud.online || !Cloud.me || !Cloud.me.signedIn || !data) return Promise.resolve();
+  const wait = now ? 0 : Math.max(0, lastPush + 20000 - Date.now());
+  clearTimeout(pushTimer);
+  return new Promise(res => {
+    pushTimer = setTimeout(async () => {
+      lastPush = Date.now();
+      try {
+        const body = JSON.stringify({ save: data, savedAt: data.savedAt });
+        // on page close a normal request may be cut off; keepalive survives (up to 64 KB)
+        if (now && body.length < 60000) {
+          await fetch(Cloud.base + '/api/save', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + Cloud.token }, body });
+        } else await api('POST', '/api/save', { save: data, savedAt: data.savedAt });
+      } catch (e) { /* offline for a moment: the next save tries again */ }
+      res();
+    }, wait);
+  });
+}
+
+async function cloudFetchSave() {
+  if (!Cloud.token) return null;
+  try { const r = await api('GET', '/api/save'); return r.save ? { save: r.save, savedAt: r.savedAt } : null; } catch (e) { return null; }
+}
+
+function cloudDeleteSave() {
+  if (Cloud.online && Cloud.me && Cloud.me.signedIn) api('POST', '/api/save/delete').catch(() => {});
+}
+
+// Signed in from the Rewards tab: this player now belongs to the account. If the account already has a shop
+// saved online (from another device), ask which one to keep.
+async function linkProfileToAccount(r) {
+  const p = Account.current;
+  if (!p) return;
+  p.contact = r.contact;
+  saveProfiles();
+  const online = await cloudFetchSave();
+  if (!online) { cloudPushSave(saveData(), true); return; }
+  const o = online.save, st = STAGES[o.stage] || STAGES[0];
+  showModal(`<h2>☁️ This account already has a shop</h2>
+    <p>Online: <b>${st.name}</b>, day ${o.day}, ${fmt(o.money)}.<br>On this device: <b>${stage().name}</b>, day ${Game.state.day}, ${fmt(Game.state.money)}.</p>
+    <p>Which one do you want to keep playing?</p>`, [
+    { label: '📱 Keep this one', fn: () => cloudPushSave(saveData(), true) },
+    { label: '☁️ Load the online shop', cls: 'primary', fn: () => {
+      try { localStorage.setItem(saveKey(p.id), JSON.stringify({ ...o, savedAt: Date.now() })); } catch (e) { /* ignore */ }
+      Game.noSave = true;
+      location.reload();
+    } },
+  ]);
 }

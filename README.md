@@ -14,6 +14,19 @@ You start as **Cani**, cutting hair alone in your parents' garage, and grow the 
 Open `index.html` in any modern browser. No build step or server needed.
 You can also serve the folder, for example with `npx serve .`.
 
+### Players and sign-in
+
+The game opens on a **Who's playing?** screen, and every player has their own shop:
+
+- **New player**: type a name and, if you like, a 4-digit PIN so nobody else on the device opens your shop.
+  (The PIN is a light lock for a shared phone, not real security.) These shops are saved on this device.
+- **Sign in with phone or email** (only when the rewards server is running): you get a 6-digit code, and
+  your shop is saved online to your account, so you can continue on any phone or computer. The newest copy
+  wins. If you sign in from the Rewards tab while playing, the game asks whether to keep this shop or load
+  the one already saved online.
+- **Menu → Switch player** goes back to the start screen. **New game** only resets the current player's shop.
+- A save from before players existed becomes **Player 1**.
+
 ## How it works
 
 **You run the floor with your fingers:**
@@ -82,7 +95,7 @@ You can also serve the folder, for example with `npx serve .`.
 | 4 | Cani Studio | 12×12 | 8 | $300 |
 | 5 | Cani Empire HQ | 14×14 | 12 | $700 |
 
-Each day runs from 09:00 to 19:00. Wages are paid at closing time; everything else comes as bills. The game autosaves to `localStorage`.
+Each day runs from 09:00 to 19:00. Wages are paid at closing time; everything else comes as bills. The game autosaves each player's shop to `localStorage` (and online for signed-in players).
 
 **The street:** in 3D the shop sits on an old-town pedestrian street modelled on Prešernova ulica in Kranj —
 stone paving, pastel houses with red tiled roofs, a hotel with red banners and flags, café umbrellas, planters and
@@ -127,6 +140,8 @@ Anyone can play and earn coins without an account, but getting a real coupon req
 **phone number or email**. The player types it in, gets a 6-digit code (valid 10 minutes, 5 tries), and is signed in.
 
 - Signing in the first time turns that device's progress into the account.
+- Signed-in players' shops are saved on the server (`DATA_DIR/saves/<player>.json`, `GET/POST /api/save`), so the
+  same account continues on any device.
 - Signing in on another phone with the same number or email opens the same account, coins and coupons.
   Coins earned on that phone before signing in are added, up to the day's cap.
 - The daily coin cap and reward limits are per account, so farming coins now needs a separate phone number or
@@ -180,7 +195,8 @@ phone or tablet. Scanning a coupon's QR code with the phone camera opens the cou
 | `js/sprites.js` | Procedurally drawn furniture and characters |
 | `js/world.js` | Simulation: pathfinding, customers, barbers, tap actions, bills, economy, day cycle, save/load |
 | `js/rewards.js` | Cani Coins, daily goals and the Rewards panel |
-| `js/cloud.js` | Talks to the rewards server: player account, coin sync, redeeming, coupon QR codes |
+| `js/cloud.js` | Talks to the rewards server: player account, coin sync, online saves, redeeming, coupon QR codes |
+| `js/account.js` | Start screen: players on this device (name + optional PIN) and phone/email sign-in |
 | `js/config.js` | Where the rewards server is (`apiBase`) |
 | `staff.html`, `js/staff.js` | Coupon desk for staff: PIN login, check / scan a code, mark as used |
 | `server/server.js` | Node server: serves the game, rewards API, daily caps, coupon codes |

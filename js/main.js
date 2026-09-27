@@ -10,7 +10,10 @@
   Renderer.init(canvas);
   initR3();
 
-  const saved = loadGame();
+  // sign in first: every player has their own shop
+  await cloudProbe();
+  const player = await accountGate();
+  const saved = await loadProfileSave(player);
   initWorld(saved || newState());
   Renderer.fitCamera();
   window.addEventListener('resize', () => Renderer.fitCamera());
@@ -23,7 +26,7 @@
   });
 
   if (!Game.state.introSeen) { Game.paused = true; showIntro(); }
-  else toast(`Welcome back to ${stage().name}! Day ${Game.state.day} ☀️`);
+  else toast(`Welcome back, ${player.name}! ${stage().name}, day ${Game.state.day} ☀️`);
 
   // ---------- UI wiring ----------
   $('#toolbar').addEventListener('click', e => {
