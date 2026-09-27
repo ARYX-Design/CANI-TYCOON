@@ -416,7 +416,12 @@ function fireBarber(id) {
   const s = Game.state;
   const agent = Game.barbers.find(a => a.data.id === id);
   if (!agent || agent.data.owner) return { ok: false };
-  if (agent.job) return { ok: false, reason: `${agent.data.name} is busy with a customer` };
+  if (agent.job) {
+    // busy: they finish this customer first, then leave
+    agent.quitting = true;
+    toast(`${agent.data.name} finishes this customer, then leaves the shop.`);
+    return { ok: true, later: true };
+  }
   s.barbers = s.barbers.filter(b => b.id !== id);
   Game.barbers = Game.barbers.filter(a => a !== agent);
   if (Game.selected === agent) Game.selected = null;
@@ -610,7 +615,7 @@ function expandShop() {
   const s = Game.state, next = STAGES[s.stage + 1];
   if (!next) return { ok: false };
   if (!expandRequirements().every(r => r.ok)) return { ok: false, reason: 'Requirements not met yet' };
-  if (Game.customers.length) return { ok: false, reason: 'Wait until the shop is empty (end of day)' };
+  if (Game.customers.length) return { ok: false, reason: 'Customers are still inside – you can move after closing time, before you open the next day.' };
   s.money -= next.cost;
   s.stage++;
   addCoins(20);
@@ -898,7 +903,7 @@ function stationWorks(item) {
 }
 
 function idleBarbers() {
-  return Game.barbers.filter(b => !b.job && b.alpha >= 1);
+  return Game.barbers.filter(b => !b.job && b.alpha >= 1 && !b.quitting);
 }
 
 const hasHelper = key => Game.state.upgrades[key] > 0;
@@ -1406,6 +1411,7 @@ function flyCoins(wx, wy, n, target = 'money') {
 
 function updateBarber(b, dt) {
   b.alpha = Math.min(1, (b.alpha || 0) + dt * 3);
+  if (b.quitting && !b.job) { fireBarber(b.data.id); return; }
   if (b.state === 'toStation') {
     if (moveAgent(b, dt)) b.state = 'waitCustomer';
   }
@@ -1502,7 +1508,7 @@ function endDay() {
   }
   const newBills = issueBills(s.day);
   const summary = { ...s.today, day: s.day, wages, lateFees, newBills, repEnd: s.rep, money: s.money, unpaid: s.bills.reduce((a, b) => a + b.amount, 0) };
-  Game.nightMode = true;
+  Game.nightMode = true;       // closed: the player can upgrade, build, hire, fire and expand before opening again
   Game.particles = [];
   Game.piles = [];          // the night cleaner sweeps up
   Game.drops = [];

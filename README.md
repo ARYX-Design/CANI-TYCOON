@@ -104,7 +104,10 @@ The **Ranks** button ranks players by **money earned**, **customers served** or 
 | 4 | Cani Studio | 12×12 | 8 | $300 |
 | 5 | Cani Empire HQ | 14×14 | 12 | $700 |
 
-Each day runs from 09:00 to 19:00. Wages are paid at closing time; everything else comes as bills. The game autosaves each player's shop to `localStorage` (and online for signed-in players).
+Each day runs from 09:00 to 19:00. After closing you get the day's summary, then the shop stays **closed for the night** until you
+press **☀️ Open Day N**. Use that break to buy upgrades, build, hire, fire or **expand** (moving needs an empty shop,
+so it only works at night). Firing a barber who is busy during the day works too: they finish their customer first,
+then leave. Wages are paid at closing time; everything else comes as bills. The game autosaves each player's shop to `localStorage` (and online for signed-in players).
 
 **The street:** in 3D the shop sits on an old-town pedestrian street modelled on Prešernova ulica in Kranj —
 stone paving, pastel houses with red tiled roofs, a hotel with red banners and flags, café umbrellas, planters and

@@ -98,6 +98,7 @@
   window.addEventListener('pointercancel', releaseRot);
   $('#compassBtn').addEventListener('click', resetRotation);
   $('#hudCoins').addEventListener('click', () => openPanel('rewards'));
+  $('#openDayBtn').addEventListener('click', openNextDay);
   $('#musicBtn').addEventListener('click', () => { unlockAudio(); setMusic(!Sound.musicOn); updateHUD(true); });
 
   canvas.addEventListener('pointerdown', e => {
@@ -154,7 +155,7 @@
       const tile = Renderer.tileAt(e.clientX, e.clientY);
       Renderer.hover = tile;
       if (UI.tool) toolClick(tile);
-      else if (!Game.nightMode) {
+      else {
         const drop = Renderer.pickDrop(e.clientX, e.clientY);
         if (drop) { collectDrop(drop); drag = null; return; }
         const agent = Renderer.pickAgent(e.clientX, e.clientY);
@@ -209,7 +210,7 @@
     step('drawing', () => Renderer.draw());
     step('hud', () => updateHUD());
     saveT += dt;
-    if (saveT > 20 && !Game.nightMode) { saveT = 0; saveGame(); }
+    if (saveT > 20) { saveT = 0; saveGame(); }
   }
   const frameErrors = {};
   requestAnimationFrame(frame);

@@ -31,7 +31,8 @@ function updateHUD(force) {
   $('#hudMoney').classList.toggle('neg', s.money < 0);
   $('#hudRep').innerHTML = `${starsHTML(s.rep)} <b>${s.rep.toFixed(1)}</b>`;
   const di = s.dayInfo;
-  $('#hudDay').textContent = di ? `${di.icon} Day ${s.day} · ${di.name.slice(0, 3)} ${clockStr(s.time)}` : `Day ${s.day} · ${clockStr(s.time)}`;
+  $('#hudDay').textContent = Game.nightMode ? `🌙 Day ${s.day} · Closed`
+    : di ? `${di.icon} Day ${s.day} · ${di.name.slice(0, 3)} ${clockStr(s.time)}` : `Day ${s.day} · ${clockStr(s.time)}`;
   $('#hudDay').title = di ? di.text : '';
   $('#hudStage').textContent = stage().name;
   const waiting = Game.customers.filter(c => c.state === 'waiting' || c.state === 'enter').length;
@@ -246,6 +247,7 @@ function staffPanel() {
   const team = Game.barbers.map(a => {
     const b = a.data;
     const status = a.job ? (a.state === 'working' ? `Cutting (${a.job.customer.service.name})` : 'Heading to a chair') : 'Free';
+    const leaving = a.quitting ? ' · <b class="neg">leaving after this customer</b>' : '';
     const o = ORIGINS[b.origin] || ORIGINS.al;
     const title = UI.renaming === b.id
       ? `<div class="rename"><input type="text" id="rename-${b.id}" data-rename="${b.id}" maxlength="16" value="${fullName(b)}" aria-label="New name for ${fullName(b)}" autocomplete="off"><button class="btn small" data-action="saveName" data-id="${b.id}">Save</button></div>`
@@ -254,7 +256,7 @@ function staffPanel() {
       ${avatarHTML(b)}
       <div class="card-main">${title}
       <div class="card-desc">Skill ${starsHTML(barberSkill(b), true)} · Speed <b>${Math.round(b.speed * 100)}%</b></div>
-      <div class="card-desc">${status}</div></div>
+      <div class="card-desc">${status}${leaving}</div></div>
       <div class="side">${b.owner ? '<span class="muted">No wage</span>' : `<div class="muted">${fmt(b.wage)}/day</div><button class="btn small danger" data-action="fire" data-id="${b.id}">Fire</button>`}</div></div>`;
   }).join('');
   const full = s.barbers.length >= st.maxBarbers;
@@ -562,6 +564,18 @@ function showIntro() {
     [{ label: "Let's cut some hair ✂️", cls: 'primary', fn: () => { unlockAudio(); Game.state.introSeen = true; Game.paused = false; } }]);
 }
 
+// Closed for the night: everything can be changed, and the day starts only when the player says so
+function showNightBar() {
+  const bar = $('#nightBar');
+  $('#openDayBtn').textContent = `☀️ Open Day ${Game.state.day}`;
+  bar.hidden = false;
+}
+function openNextDay() {
+  $('#nightBar').hidden = true;
+  $('#modal').classList.add('hidden');
+  if (Game.nightMode) startDay();
+}
+
 function showDaySummary(sm) {
   const net = sm.revenue + sm.tips - sm.wages - sm.lateFees;
   const repD = sm.repEnd - sm.repStart;
@@ -593,8 +607,9 @@ function showDaySummary(sm) {
       <div><span>Cash · unpaid bills</span><b>${fmt(sm.money)} · <span class="${sm.unpaid ? 'neg' : ''}">${fmt(sm.unpaid)}</span></b></div>
     </div>${bills}${tomorrow}${tip ? `<p class="tip">${tip}</p>` : ''}`,
     [
-      ...(sm.unpaid ? [{ label: '🧾 Pay bills', fn: () => { startDay(); openPanel('bills'); } }] : []),
-      { label: `☀️ Open Day ${Game.state.day}`, cls: 'primary', fn: startDay },
+      ...(sm.unpaid ? [{ label: '🧾 Pay bills', fn: () => { showNightBar(); openPanel('bills'); } }] : []),
+      { label: '🛠️ Plan first', fn: () => { showNightBar(); openPanel('upgrades'); } },
+      { label: `☀️ Open Day ${Game.state.day}`, cls: 'primary', fn: openNextDay },
     ]);
   if (sm.newBills.length) sfx('bill');
 }

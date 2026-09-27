@@ -419,3 +419,13 @@ body.view3d #rotateBtns { display: flex; }
   #toolbar button { font-size: 9px; letter-spacing: -0.2px; padding: 5px 0; }
   #toolbar button span { font-size: 18px; }
 }
+
+/* ---------- closed for the night ---------- */
+#nightBar { position: fixed; top: 74px; left: 50%; transform: translateX(-50%); z-index: 12; display: flex; align-items: center; gap: 12px;
+  padding: 8px 8px 8px 16px; border-radius: 16px; background: rgba(20, 22, 44, 0.95); border: 1px solid rgba(241, 196, 83, 0.5);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45); font-size: 14px; max-width: calc(100% - 16px); }
+#nightBar[hidden] { display: none; }
+#nightBar .btn { white-space: nowrap; }
+@media (max-width: 760px) {
+  #nightBar { top: 120px; left: 8px; right: 8px; transform: none; font-size: 12px; padding: 6px 6px 6px 12px; }
+}
