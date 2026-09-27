@@ -640,9 +640,9 @@ function expandShop() {
 
 function spawnRatePerHour() {
   const s = Game.state;
-  const decor = Math.min(decorScore(), 40);
+  const decor = Math.min(decorScore(), 80);
   return (s.dayInfo ? s.dayInfo.mult : 1) * (effectActive('rushHour') ? 1.5 : 1) * (0.9 + s.rep * 0.75 + decor * 0.08) * (1 + s.stage * 0.5) *
-    (1 + s.upgrades.marketing * 0.2) * PRICE_LEVELS[s.priceLevel].demand;
+    (1 + s.upgrades.marketing * 0.2) * (1 + (s.upgrades.booking || 0) * 0.12) * PRICE_LEVELS[s.priceLevel].demand;
 }
 
 function weightedService(female) {
@@ -732,7 +732,7 @@ function spawnCustomer() {
 const VIP = { name: 'xardiig', chance: 0.35, priceMult: 3, coins: 10 };
 
 function planVip(s) {
-  s.today.vipAt = s.day >= 2 && Math.random() < VIP.chance ? Math.round(rand(11 * 60, 16 * 60)) : 0;
+  s.today.vipAt = s.day >= 2 && Math.random() < VIP.chance + (s.upgrades.vipLounge || 0) * 0.15 ? Math.round(rand(11 * 60, 16 * 60)) : 0;
 }
 
 function vipService() {
@@ -1226,7 +1226,7 @@ function updateCustomer(c, dt, dtMin) {
         c.towel = c.service.station === 'sink' || c.service.id === 'shave';
         const itemSpeed = ITEMS[c.station.type].speed || 1;
         const power = utilityOff('power') ? 0.75 : 1;
-        c.duration = c.service.time / (c.cutBy.data.speed * (1 + s.upgrades.clippers * 0.15) * itemSpeed * power);
+        c.duration = c.service.time / (c.cutBy.data.speed * (1 + s.upgrades.clippers * 0.15) * (1 + (s.upgrades.training || 0) * 0.08) * itemSpeed * power);
         c.progress = 0;
       }
       if (c.inService) {
@@ -1347,7 +1347,7 @@ function finishService(c) {
   const skill = barberSkill(b.data);
   const waitFrac = clamp(c.patience / c.maxPatience, 0, 1);
   const decor = Math.min(decorScore(), 40);
-  let sat = 0.5 + waitFrac * 0.2 + (skill - 1) / 4 * 0.22 + decor / 40 * 0.1 + PRICE_LEVELS[s.priceLevel].sat + rand(-0.05, 0.05);
+  let sat = 0.5 + waitFrac * 0.2 + (skill - 1) / 4 * 0.22 + decor / 40 * 0.1 + PRICE_LEVELS[s.priceLevel].sat + (s.upgrades.aircon || 0) * 0.03 + rand(-0.05, 0.05);
   sat -= Math.min(0.2, dirtiness() * 0.025);
   if (utilityOff('power')) sat -= 0.08;
   sat = clamp(sat, 0, 1);
@@ -1497,6 +1497,9 @@ function endDay() {
   const s = Game.state;
   const wages = s.barbers.reduce((a, b) => a + (b.wage || 0), 0);
   s.money -= wages;
+  // other CANI shops send their share
+  const franchise = (s.upgrades.franchise || 0) * 150;
+  s.money += franchise;
   // late fees and reputation damage for overdue bills
   let lateFees = 0;
   for (const b of s.bills) {
@@ -1507,7 +1510,7 @@ function endDay() {
     }
   }
   const newBills = issueBills(s.day);
-  const summary = { ...s.today, day: s.day, wages, lateFees, newBills, repEnd: s.rep, money: s.money, unpaid: s.bills.reduce((a, b) => a + b.amount, 0) };
+  const summary = { ...s.today, day: s.day, wages, franchise, lateFees, newBills, repEnd: s.rep, money: s.money, unpaid: s.bills.reduce((a, b) => a + b.amount, 0) };
   Game.nightMode = true;       // closed: the player can upgrade, build, hire, fire and expand before opening again
   Game.particles = [];
   Game.piles = [];          // the night cleaner sweeps up

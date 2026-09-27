@@ -577,7 +577,7 @@ function openNextDay() {
 }
 
 function showDaySummary(sm) {
-  const net = sm.revenue + sm.tips - sm.wages - sm.lateFees;
+  const net = sm.revenue + sm.tips + (sm.franchise || 0) - sm.wages - sm.lateFees;
   const repD = sm.repEnd - sm.repStart;
   let tip = '';
   if (sm.walkouts >= 2) tip = `💸 ${sm.walkouts} customers left without paying. Tap customers with 💵 before their bar runs out, or learn <b>Barbers Take Payment</b> in Upgrades.`;
@@ -599,6 +599,7 @@ function showDaySummary(sm) {
       <div><span>Haircuts</span><b>${fmt(sm.revenue)}</b></div>
       <div><span>Tips</span><b>${fmt(sm.tips)}</b></div>
       <div><span>Wages</span><b class="neg">-${fmt(sm.wages)}</b></div>
+      ${sm.franchise ? `<div><span>Franchise shops</span><b class="pos">+${fmt(sm.franchise)}</b></div>` : ''}
       <div><span>Late fees</span><b class="${sm.lateFees ? 'neg' : ''}">-${fmt(sm.lateFees)}</b></div>
       <div class="total"><span>Profit</span><b class="${net < 0 ? 'neg' : 'pos'}">${fmt(net)}</b></div>
       <div><span>Served / lost</span><b>${sm.served} / ${sm.lost}</b></div>

@@ -43,6 +43,21 @@ const STAGES = [
     floor: 'marble', wall: '#1f1f27', wallDark: '#16161c', trim: '#f1c453',
     desc: 'The flagship of the CANI empire. Marble, gold and 12 master barbers.',
   },
+  {
+    name: 'Ljubljana Flagship', size: 16, maxBarbers: 15, cost: 150000, rep: 4.6, served: 1400, rent: 1500,
+    floor: 'terrazzo', wall: '#e9e4da', wallDark: '#cfc7b8', trim: '#0b0b0c',
+    desc: 'Right on Prešernov trg in the capital. Terrazzo floors and room for 15 barbers.',
+  },
+  {
+    name: 'Vienna Grand Salon', size: 18, maxBarbers: 18, cost: 400000, rep: 4.75, served: 2800, rent: 3500,
+    floor: 'herringbone', wall: '#5c1a1b', wallDark: '#45131a', trim: '#f1c453',
+    desc: 'CANI goes abroad: a grand salon in Vienna with parquet floors and 18 barbers.',
+  },
+  {
+    name: 'CANI Tower Dubai', size: 20, maxBarbers: 22, cost: 1000000, rep: 4.9, served: 5000, rent: 8000,
+    floor: 'blackmarble', wall: '#0d0d12', wallDark: '#08080c', trim: '#f1c453',
+    desc: 'The top of the world. Black marble, gold and 22 of the best barbers alive.',
+  },
 ];
 
 // All furniture is 1x1 tile.
@@ -69,6 +84,17 @@ const ITEMS = {
   neonSign:     { name: 'Neon CANI Sign',   cost: 0, coinCost: 30, stage: 0, decor: 6, electric: true, icon: '💡', desc: 'Coin-only exclusive. Glowing pink neon. +6 appeal.' },
   goldenPole:   { name: 'Golden Pole',      cost: 0, coinCost: 20, stage: 0, decor: 5, icon: '✨', desc: 'Coin-only exclusive. A spinning gold barber pole. +5 appeal.' },
   statue:       { name: 'Cani Statue',      cost: 6000, stage: 4, decor: 12, icon: '🗿', desc: 'A golden statue of the founder. +12 appeal.' },
+  lamp:         { name: 'Floor Lamp',       cost: 70,   stage: 0, electric: true, decor: 1, icon: '💡', desc: 'Warm light in a corner. +1 appeal.' },
+  magazines:    { name: 'Magazine Rack',    cost: 90,   stage: 0, decor: 1, patience: 0.05, icon: '📰', desc: 'Something to read. +1 appeal, customers wait 5% longer.' },
+  photoWall:    { name: 'CANI Selfie Wall', cost: 600,  stage: 1, decor: 4, icon: '🤳', desc: 'Everyone posts a photo with the logo. +4 appeal.' },
+  sofa:         { name: 'Velvet Sofa',      cost: 450,  stage: 2, seat: true, decor: 2, icon: '🛋️', desc: 'A very comfy waiting seat. +2 appeal.' },
+  barCart:      { name: 'Espresso Bar',     cost: 900,  stage: 2, electric: true, decor: 3, patience: 0.1, icon: '☕', desc: 'Free espresso for waiting guests. +3 appeal, 10% more patience.' },
+  massageChair: { name: 'Massage Chair',    cost: 2200, stage: 3, seat: true, electric: true, decor: 3, patience: 0.08, icon: '💆', desc: 'A waiting seat that massages. +3 appeal, 8% more patience.' },
+  chandelier:   { name: 'Crystal Chandelier', cost: 5000, stage: 4, electric: true, decor: 8, icon: '🕯️', desc: 'Sparkling crystal on a stand. +8 appeal.' },
+  djBooth:      { name: 'DJ Booth',         cost: 12000, stage: 5, electric: true, decor: 10, patience: 0.1, icon: '🎧', desc: 'A live DJ on busy days. +10 appeal, 10% more patience.' },
+  diamondChair: { name: 'Diamond Throne',   cost: 15000, stage: 5, station: 'chair', decor: 5, speed: 1.5, icon: '💎', desc: 'The fastest chair there is. 50% faster cuts, +5 appeal.' },
+  fountain:     { name: 'Marble Fountain',  cost: 25000, stage: 6, decor: 14, patience: 0.05, icon: '⛲', desc: 'Relaxing water in the middle of the salon. +14 appeal.' },
+  supercar:     { name: 'Supercar Display', cost: 60000, stage: 7, decor: 20, icon: '🏎️', desc: 'A gold supercar parked inside. +20 appeal.' },
 };
 
 // time is in game minutes (at 1x, 4 game minutes pass per real second)
@@ -83,6 +109,9 @@ const SERVICES = [
   { id: 'signature', name: 'Cani Signature Cut',  price: 60,  time: 60,  station: 'chair', stage: 2, weight: 2 },
   { id: 'royal',     name: 'Royal Treatment',     price: 150, time: 90,  station: 'chair', stage: 3, weight: 1 },
   { id: 'vip',       name: 'Celebrity VIP Cut',   price: 300, time: 120, station: 'chair', stage: 4, weight: 1 },
+  { id: 'design',    name: 'Hair Tattoo Design',  price: 180, time: 80,  station: 'chair', stage: 5, weight: 1 },
+  { id: 'spa',       name: 'Scalp Spa Treatment', price: 220, time: 70,  station: 'sink',  stage: 6, weight: 1 },
+  { id: 'platinum',  name: 'Platinum Color',      price: 400, time: 110, station: 'color', stage: 7, weight: 1 },
 ];
 
 const UPGRADES = {
@@ -91,13 +120,18 @@ const UPGRADES = {
   receptionist: { name: 'Receptionist', icon: '🛎️', desc: 'Seats waiting customers for you.', costs: [1200], stage: 1, helper: true },
   cashier:   { name: 'Cashier',          icon: '🧾', desc: 'Sends finished customers to pay and rings them up.', costs: [1800], stage: 2, helper: true },
   cleaner:   { name: 'Cleaner',          icon: '🧹', desc: 'Sweeps hair off the floor.', costs: [700], stage: 1, helper: true },
-  students:  { name: 'Hair School Students', icon: '🧑‍🎓', desc: 'Students sweep the floor, pay bills when they are due and help barbers cut (35% faster). +1 student per level.', costs: [500, 1600, 4000], helper: true, levels: true },
-  clippers:  { name: 'Pro Clippers',     icon: '✂️', desc: 'All services 15% faster per level.',      costs: [400, 1500, 5000, 11000, 22000, 40000] },
-  marketing: { name: 'Social Media Ads', icon: '📱', desc: '+20% more customers per level.',          costs: [300, 1200, 4000, 9000, 18000, 32000] },
-  academy:   { name: 'Barber Academy',   icon: '🎓', desc: '+0.5 skill for every barber per level.',  costs: [600, 2500, 8000, 15000, 28000] },
-  loyalty:   { name: 'Loyalty Cards',    icon: '💳', desc: '+15% tips and +10% patience per level.',  costs: [250, 1000, 3500, 8000, 16000] },
-  comfort:   { name: 'Comfy Waiting Area', icon: '🛋️', desc: 'Customers wait 10% longer per level.', costs: [350, 1400, 4500, 10000] },
-  prestige:  { name: 'Shop Reputation PR', icon: '📰', desc: '+8% prices per level – people pay more for a famous shop.', costs: [800, 3000, 9000, 20000, 38000] },
+  students:  { name: 'Hair School Students', icon: '🧑‍🎓', desc: 'Students sweep the floor, pay bills when they are due and help barbers cut (35% faster). +1 student per level.', costs: [500, 1600, 4000, 9000, 18000], helper: true, levels: true },
+  clippers:  { name: 'Pro Clippers',     icon: '✂️', desc: 'All services 15% faster per level.',      costs: [400, 1500, 5000, 11000, 22000, 40000, 75000, 140000] },
+  marketing: { name: 'Social Media Ads', icon: '📱', desc: '+20% more customers per level.',          costs: [300, 1200, 4000, 9000, 18000, 32000, 60000, 110000] },
+  academy:   { name: 'Barber Academy',   icon: '🎓', desc: '+0.5 skill for every barber per level.',  costs: [600, 2500, 8000, 15000, 28000, 50000] },
+  loyalty:   { name: 'Loyalty Cards',    icon: '💳', desc: '+15% tips and +10% patience per level.',  costs: [250, 1000, 3500, 8000, 16000, 30000, 55000] },
+  comfort:   { name: 'Comfy Waiting Area', icon: '🛋️', desc: 'Customers wait 10% longer per level.', costs: [350, 1400, 4500, 10000, 20000, 40000] },
+  prestige:  { name: 'Shop Reputation PR', icon: '📰', desc: '+8% prices per level – people pay more for a famous shop.', costs: [800, 3000, 9000, 20000, 38000, 70000, 120000] },
+  training:  { name: 'Speed Training',   icon: '⏱️', desc: 'Barbers work 8% faster per level.',       costs: [1000, 4000, 12000, 30000, 70000] },
+  booking:   { name: 'Online Booking App', icon: '📲', desc: '+12% more customers per level – people book from their phone.', costs: [2500, 9000, 25000, 60000], stage: 2 },
+  aircon:    { name: 'Air Conditioning', icon: '❄️', desc: 'Customers are 3% happier per level (better ratings and tips).', costs: [700, 2800, 9000, 22000], stage: 1 },
+  vipLounge: { name: 'VIP Lounge',       icon: '👑', desc: 'xardiig visits more often: +15% chance per level.', costs: [5000, 15000, 40000], stage: 3 },
+  franchise: { name: 'CANI Franchise',   icon: '🏢', desc: 'Other CANI shops pay you a share: +$150 at the end of every day per level.', costs: [50000, 120000, 250000, 500000], stage: 5 },
 };
 
 const BILL_TYPES = {

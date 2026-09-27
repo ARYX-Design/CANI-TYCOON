@@ -111,6 +111,9 @@ const Renderer = {
         case 'checker': fill = (x + y) % 2 ? '#2b2d31' : '#f1f1ee'; stroke = 'rgba(0,0,0,0.12)'; break;
         case 'wood': fill = shade('#b98352', (h - 0.5) * 0.14 + (x % 2 ? 0.03 : -0.03)); stroke = 'rgba(80,40,10,0.25)'; break;
         case 'darkwood': fill = shade('#5b3d2b', (h - 0.5) * 0.14 + (y % 2 ? 0.04 : -0.02)); stroke = 'rgba(0,0,0,0.3)'; break;
+        case 'terrazzo': fill = shade('#e6e1d6', (h - 0.5) * 0.06); stroke = 'rgba(0,0,0,0.08)'; break;
+        case 'herringbone': fill = shade('#8a5a33', (h - 0.5) * 0.12 + ((x + y) % 2 ? 0.03 : -0.03)); stroke = 'rgba(60,30,10,0.3)'; break;
+        case 'blackmarble': fill = shade('#15151b', (h - 0.5) * 0.1); stroke = 'rgba(241,196,83,0.3)'; break;
         default: fill = (x + y) % 2 ? '#ece8df' : '#dcd6ca'; stroke = 'rgba(160,130,60,0.35)';
       }
       tileDiamond(ctx, x, y, fill, stroke);
@@ -380,7 +383,7 @@ const Renderer = {
   },
 
   drawItem(ctx, it, t) {
-    const fn = ItemSprites[it.type];
+    const fn = ItemSprites[it.type] || genericItemSprite;
     if (UI.tool && UI.tool.mode === 'sell' && this.hover && this.hover.x === it.x && this.hover.y === it.y) {
       tileDiamond(ctx, it.x, it.y, 'rgba(230,57,70,0.45)');
     }
@@ -390,7 +393,7 @@ const Renderer = {
     g.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.ellipse(c.x, c.y, 26, 13, 0, 0, Math.PI * 2); ctx.fill();
-    if (fn) fn.call(ItemSprites, ctx, it.x, it.y, t);
+    if (ItemSprites[it.type]) fn.call(ItemSprites, ctx, it.x, it.y, t); else genericItemSprite(ctx, it.x, it.y, t, it.type);
   },
 
   drawBuildHighlight(ctx) {
@@ -416,7 +419,7 @@ const Renderer = {
     const { x, y } = this.hover;
     if (!inBounds(x, y) || itemAt(x, y)) return;
     ctx.globalAlpha = 0.6;
-    ItemSprites[UI.tool.type].call(ItemSprites, ctx, x, y, t);
+    if (ItemSprites[UI.tool.type]) ItemSprites[UI.tool.type].call(ItemSprites, ctx, x, y, t); else genericItemSprite(ctx, x, y, t, UI.tool.type);
     ctx.globalAlpha = 1;
   },
 

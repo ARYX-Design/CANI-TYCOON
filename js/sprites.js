@@ -205,6 +205,17 @@ const ItemSprites = {
   },
 };
 
+// Classic 2D view for furniture without its own drawing: a plinth with the item's icon
+function genericItemSprite(ctx, x, y, t, type) {
+  const def = ITEMS[type] || {};
+  const tall = def.seat ? 14 : def.station ? 20 : 26;
+  box(ctx, x + 0.2, y + 0.2, 0.6, 0.6, 0, tall, def.decor >= 8 ? '#c9a24f' : '#5c5f6b');
+  const p = iso(x + 0.5, y + 0.5, tall + 12);
+  ctx.font = '20px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(def.icon || '✨', p.x, p.y + Math.sin(t * 2 + x) * 1.5);
+  ctx.textBaseline = 'alphabetic';
+}
+
 // ---------- People ----------
 
 const OUTLINE = 'rgba(28,20,38,0.7)';

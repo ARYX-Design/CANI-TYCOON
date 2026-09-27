@@ -92,8 +92,15 @@ The **Ranks** button ranks players by **money earned**, **customers served** or 
 - **Staff**: hire barbers, each with their own skill, speed and daily wage. New candidates show up every morning.
   Rename any barber, Cani included, with the ✏️ button in the Staff panel or the Rename button on their card.
 - **Services**: new services unlock as you grow. Some need a Wash Sink or Color Station. Pick a Budget, Normal or Premium price level.
-- **Upgrades**: Pro Clippers (6 levels), Social Media Ads (6), Barber Academy (5), Loyalty Cards (5),
-  Comfy Waiting Area (4 levels, customers wait 10% longer each) and Shop Reputation PR (5 levels, +8% prices each).
+- **Upgrades**: Pro Clippers (8 levels), Social Media Ads (8), Barber Academy (6), Loyalty Cards (7),
+  Comfy Waiting Area (6), Shop Reputation PR (7), Speed Training (5, barbers 8% faster each),
+  Online Booking App (4, +12% customers each), Air Conditioning (4, happier customers), VIP Lounge (3, xardiig
+  visits more often) and CANI Franchise (4, +$150 at the end of every day per level). Hair School Students go up to 5.
+- **Locations**: Garage → Corner Shop → Downtown Barbershop → Cani Studio → Cani Empire HQ → **Ljubljana Flagship**
+  (16×16, 15 barbers) → **Vienna Grand Salon** (18×18, 18 barbers) → **CANI Tower Dubai** (20×20, 22 barbers),
+  each with its own floor and new services (Hair Tattoo Design, Scalp Spa Treatment, Platinum Color).
+- **More furniture**: Floor Lamp, Magazine Rack, CANI Selfie Wall, Velvet Sofa, Espresso Bar, Massage Chair,
+  Crystal Chandelier, DJ Booth, Diamond Throne (50% faster cuts), Marble Fountain and a gold Supercar Display.
 - **Expand** through 5 locations. Each one needs money, reputation and a number of customers served:
 
 | # | Location | Size | Barbers | Rent/day |
