@@ -388,6 +388,7 @@ function menuPanel() {
       <button class="btn" data-action="toggleNames">${UI.showNames ? '🏷️ Names on' : '🏷️ Names off'}</button>
       <button class="btn" data-action="recenter">🎯 Recenter view</button>
       <button class="btn" data-action="save">💾 Save now</button>
+      ${canInvite() ? '<button class="btn" data-action="invite">📤 Invite friends</button>' : ''}
       <button class="btn" data-action="help">❓ How to play</button>
       <button class="btn danger" data-action="reset">🗑️ New game</button>
     </div>`;
@@ -434,6 +435,7 @@ function handlePanelClick(e) {
     case 'lbScope': Board.scope = el.dataset.v; renderPanel(); break;
     case 'lbMetric': Board.metric = el.dataset.v; Board.rows = Board.scope === 'all' ? null : Board.rows; renderPanel(); if (boardOnline()) loadBoard(); break;
     case 'lbRename': renamePlayer(); break;
+    case 'invite': inviteFriends(); break;
     case 'reset':
       showModal(`<h2>Start over?</h2><p>This deletes <b>${escapeHtml(Account.current.name)}</b>'s shop and sends them back to the garage. Other players keep theirs.</p>`, [
         { label: 'Cancel' },

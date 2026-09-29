@@ -135,10 +135,25 @@ function leaderboardPanel() {
     ? 'Players on this phone or computer.'
     : `${Board.players} player${Board.players === 1 ? '' : 's'} in total. Your shop is sent at the end of every day.${Board.readOnly ? ' You can see the board, but only people with Contributor access can post a score here.' : ''}`;
   return `<div class="account-row"><span>🏷️ Your name on the board: <b>${escapeHtml(Account.current.name)}</b></span><button class="btn small" data-action="lbRename">✏️ Change</button></div>
+    ${canInvite() ? '<button class="btn wide" data-action="invite">📤 Invite friends to play</button>' : ''}
     ${tabs}
     ${Board.error ? `<div class="panel-note">⚠️ ${Board.error}</div>` : ''}
     <div class="lb-list">${list}</div>
     <div class="panel-note">${note}</div>`;
+}
+
+// "Invite friends": the phone's share sheet, or copy the link. Only for the hosted game, where
+// everyone who opens the link plays on the same server and the same leaderboard.
+const canInvite = () => Cloud.online && /^https?:$/.test(location.protocol);
+async function inviteFriends() {
+  const url = location.origin + '/';
+  const me = Account.current ? Account.current.name : '';
+  const text = `Play CANI Barber Tycoon with me${me ? ` (I'm ${me})` : ''} – build your barbershop and beat me on the leaderboard! 💈`;
+  try {
+    if (navigator.share) { await navigator.share({ title: 'CANI Barber Tycoon', text, url }); return; }
+  } catch (e) { if (e && e.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(`${text} ${url}`); toast('🔗 Link copied – paste it to your friends!'); }
+  catch (e) { showModal(`<h2>📤 Invite friends</h2><p>Send them this link:</p><input class="field" value="${url}" readonly onclick="this.select()">`, [{ label: 'Close', cls: 'primary' }]); }
 }
 
 function renamePlayer() {

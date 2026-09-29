@@ -205,7 +205,23 @@ Keep the connection string secret: it contains the database password. Don't comm
 The game in the browser never talks to Neon directly, only to this server. Run **one** server process per
 database, because the server keeps the data in memory and writes changes back.
 
-### Host it
+### Host it (share the game with everyone)
+
+**Quickest: Render + Neon** (the repo has a `render.yaml` blueprint):
+
+1. Sign in at [render.com](https://render.com) with GitHub → **New → Blueprint** → pick this repo.
+2. Render asks for two values: `DATABASE_URL` (your Neon connection string) and `STAFF_PIN` (a 4+ digit PIN
+   for the coupon desk). Press **Apply**.
+3. After a few minutes you get an address like `https://cani-barber-tycoon.onrender.com`. Send that link to
+   anyone. They play in their phone's browser without any account, and everyone is on the same **🏆 Ranks**
+   leaderboard. The **📤 Invite friends** button (Ranks tab and menu) shares the link.
+
+The free plan sleeps after 15 minutes without visitors (the next visit takes about a minute to wake it); the
+Starter plan stays awake. A custom domain (e.g. `cani-game.si`) can be added in Render's settings.
+Phone/email sign-in needs Resend (email) or Twilio (SMS) keys; without them, players use **New player**, which
+still counts on the shared leaderboard.
+
+**Other hosts**
 
 Any host that runs Node 18+ works, for example Render, Railway, Fly.io or a small VPS. Start command `npm start`
 (build command `npm install`), set `STAFF_PIN`, `TZ=Europe/Ljubljana` and `DATABASE_URL` (Neon, above). Without

@@ -1,0 +1,21 @@
+# One-click hosting on Render (render.com): New > Blueprint > pick this GitHub repo.
+# Render asks for the two secret values below; everything else is filled in.
+services:
+  - type: web
+    name: cani-barber-tycoon
+    runtime: node
+    region: frankfurt            # closest to Slovenia
+    plan: free                   # free sleeps when unused; "starter" stays awake
+    branch: claude/cani-barber-tycoon-ump5xn
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATABASE_URL        # your Neon connection string (postgresql://…?sslmode=require)
+        sync: false
+      - key: STAFF_PIN           # 4+ digit PIN for the coupon desk (/staff.html)
+        sync: false
+      - key: TZ
+        value: Europe/Ljubljana
+      - key: NODE_VERSION
+        value: "20"
