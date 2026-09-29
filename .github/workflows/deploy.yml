@@ -53,14 +53,14 @@ jobs:
           neon --version
 
           # Neon Functions only run in some regions
-          REGION=$(neon projects get "$PROJECT" -o json | jq -r '.region_id // .project.region_id // empty')
+          REGION=$(neon projects get "$PROJECT" -o json | jq -r '(if type == "array" then .[0] else . end) | (.region_id // .project.region_id // empty)')
           echo "Neon project region: $REGION"
           case "$REGION" in
             aws-us-east-2|aws-us-east-1|aws-eu-central-1|aws-ap-southeast-1) ;;
             *) echo "::error::Neon Functions are not available in $REGION. Create a Neon project in AWS Europe Central (Frankfurt) and reconnect the GitHub integration."; exit 1 ;;
           esac
 
-          BRANCH=$(neon branches list --project-id "$PROJECT" -o json | jq -r '(.branches // .) | map(select(.default == true or .primary == true)) | .[0].id')
+          BRANCH=$(neon branches list --project-id "$PROJECT" -o json | jq -r '(if type == "array" then . else .branches end) | map(select(.default == true or .primary == true)) | .[0].id')
           echo "Deploying to branch $BRANCH"
 
           ORIGIN="https://$(echo "$OWNER" | tr '[:upper:]' '[:lower:]').github.io"
@@ -69,7 +69,7 @@ jobs:
 
           neon functions deploy caniapi --project-id "$PROJECT" --branch "$BRANCH" --src dist/function --no-bundle --runtime nodejs24 "${ARGS[@]}"
 
-          URL=$(neon functions get caniapi --project-id "$PROJECT" --branch "$BRANCH" -o json | jq -r '.invocation_url // .function.invocation_url // empty')
+          URL=$(neon functions get caniapi --project-id "$PROJECT" --branch "$BRANCH" -o json | jq -r '(if type == "array" then .[0] else . end) | (.invocation_url // .function.invocation_url // empty)')
           URL="${URL%/}"
           if [ -z "$URL" ]; then echo "::error::Could not read the Function URL"; neon functions get caniapi --project-id "$PROJECT" --branch "$BRANCH" -o json; exit 1; fi
           echo "API: $URL"
