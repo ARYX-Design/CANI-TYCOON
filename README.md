@@ -207,6 +207,19 @@ database, because the server keeps the data in memory and writes changes back.
 
 ### Host it (share the game with everyone)
 
+**Free and automatic: GitHub Pages + Neon** (`.github/workflows/deploy.yml`). Every push to the repo:
+
+1. deploys the rewards API (`server/api.js`) as a **Neon Function** on your Neon project (it needs the Neon
+   GitHub integration's `NEON_PROJECT_ID` and `NEON_API_KEY`, and a project in a Functions region such as
+   AWS Europe Central / Frankfurt), and
+2. publishes the game on **GitHub Pages** at `https://<owner>.github.io/<repo>/`, pointed at that API.
+
+Anyone opens that link on their phone and plays; the 🏆 leaderboard is shared by everyone. Optional repo secret
+`STAFF_PIN` (Settings → Secrets and variables → Actions) switches on the coupon desk at `…/staff.html`.
+If the first run says Pages isn't enabled: Settings → Pages → Source: **GitHub Actions**, then re-run it.
+
+**Or one server on Render** (`render.yaml`):
+
 **Quickest: Render + Neon** (the repo has a `render.yaml` blueprint):
 
 1. Sign in at [render.com](https://render.com) with GitHub → **New → Blueprint** → pick this repo.

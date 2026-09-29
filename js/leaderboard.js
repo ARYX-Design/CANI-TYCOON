@@ -146,7 +146,7 @@ function leaderboardPanel() {
 // everyone who opens the link plays on the same server and the same leaderboard.
 const canInvite = () => Cloud.online && /^https?:$/.test(location.protocol);
 async function inviteFriends() {
-  const url = location.origin + '/';
+  const url = siteUrl();
   const me = Account.current ? Account.current.name : '';
   const text = `Play CANI Barber Tycoon with me${me ? ` (I'm ${me})` : ''} – build your barbershop and beat me on the leaderboard! 💈`;
   try {

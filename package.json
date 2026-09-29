@@ -2,15 +2,19 @@
   "name": "cani-barber-tycoon",
   "version": "1.0.0",
   "private": true,
-  "description": "CANI Barber Tycoon – 3D barbershop tycoon game with real-world rewards",
+  "description": "CANI Barber Tycoon \u2013 3D barbershop tycoon game with real-world rewards",
   "scripts": {
     "start": "node server/server.js",
-    "test:server": "node server/smoke-test.js"
+    "test:server": "node server/smoke-test.js",
+    "build:function": "esbuild server/function.mjs --bundle --platform=node --format=esm --target=node22 --outfile=dist/function/index.mjs --banner:js=\"import { createRequire as __cr } from 'module'; const require = __cr(import.meta.url);\""
   },
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
     "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.12"
   }
 }

@@ -1,0 +1,114 @@
+# Puts the game online for free on every push:
+#   1. the rewards API (server/api.js) → a Neon Function on your Neon project's main branch
+#   2. the game files → GitHub Pages, with js/config.js pointing at that Function
+# Uses what the Neon GitHub integration added: NEON_PROJECT_ID (variable) and NEON_API_KEY (secret).
+# Optional secret STAFF_PIN (4+ digits) switches on the coupon desk at …/staff.html.
+name: Deploy (GitHub Pages + Neon)
+
+on:
+  push:
+    branches: [claude/cani-barber-tycoon-ump5xn, main]
+    paths-ignore: ['**.md']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  api:
+    name: API on Neon Functions
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build:function
+
+      - name: Deploy the API
+        id: deploy
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          PROJECT: ${{ vars.NEON_PROJECT_ID }}
+          STAFF_PIN: ${{ secrets.STAFF_PIN }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          if [ -z "$NEON_API_KEY" ] || [ -z "$PROJECT" ]; then
+            echo "::error::NEON_API_KEY or NEON_PROJECT_ID is missing. Connect the repo in Neon: Project settings > Integrations > GitHub."
+            exit 1
+          fi
+          npm i -g neon@latest >/dev/null 2>&1
+          neon --version
+
+          # Neon Functions only run in some regions
+          REGION=$(neon projects get "$PROJECT" -o json | jq -r '.region_id // .project.region_id // empty')
+          echo "Neon project region: $REGION"
+          case "$REGION" in
+            aws-us-east-2|aws-us-east-1|aws-eu-central-1|aws-ap-southeast-1) ;;
+            *) echo "::error::Neon Functions are not available in $REGION. Create a Neon project in AWS Europe Central (Frankfurt) and reconnect the GitHub integration."; exit 1 ;;
+          esac
+
+          BRANCH=$(neon branches list --project-id "$PROJECT" -o json | jq -r '(.branches // .) | map(select(.default == true or .primary == true)) | .[0].id')
+          echo "Deploying to branch $BRANCH"
+
+          ORIGIN="https://$(echo "$OWNER" | tr '[:upper:]' '[:lower:]').github.io"
+          ARGS=(--env "ALLOWED_ORIGIN=$ORIGIN" --env "TZ=Europe/Ljubljana")
+          if [ -n "$STAFF_PIN" ]; then ARGS+=(--env "STAFF_PIN=$STAFF_PIN"); else echo "::notice::No STAFF_PIN secret: the coupon desk stays off."; fi
+
+          neon functions deploy caniapi --project-id "$PROJECT" --branch "$BRANCH" --src dist/function --no-bundle --runtime nodejs24 "${ARGS[@]}"
+
+          URL=$(neon functions get caniapi --project-id "$PROJECT" --branch "$BRANCH" -o json | jq -r '.invocation_url // .function.invocation_url // empty')
+          URL="${URL%/}"
+          if [ -z "$URL" ]; then echo "::error::Could not read the Function URL"; neon functions get caniapi --project-id "$PROJECT" --branch "$BRANCH" -o json; exit 1; fi
+          echo "API: $URL"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+          # the Function starts on the first request; give it a moment
+          for i in $(seq 1 12); do
+            if curl -fsS -m 20 "$URL/api/health"; then echo; exit 0; fi
+            sleep 5
+          done
+          echo "::error::The API did not answer at $URL/api/health"
+          exit 1
+
+  pages:
+    name: Game on GitHub Pages
+    needs: api
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.pages.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the site
+        env:
+          API_URL: ${{ needs.api.outputs.url }}
+        run: |
+          set -euo pipefail
+          mkdir -p _site
+          cp -r index.html staff.html css js img _site/
+          # point the game and the staff desk at the Neon Function
+          sed -i "s|apiBase: '',|apiBase: '${API_URL}',|" _site/js/config.js
+          grep -q "$API_URL" _site/js/config.js
+          touch _site/.nojekyll
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: pages
+        uses: actions/deploy-pages@v4

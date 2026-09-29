@@ -153,9 +153,11 @@ function qrSvg(text) {
   return q.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
 }
 
+// the folder the game is served from, e.g. https://aryx-design.github.io/CANI-TYCOON/
+const siteUrl = () => location.origin + location.pathname.replace(/[^/]*$/, '');
+
 function staffUrl(code) {
-  const base = Cloud.base || location.origin;
-  return `${base.replace(/\/$/, '')}/staff.html#${code}`;
+  return `${siteUrl()}staff.html#${code}`;
 }
 
 // Full-screen coupon to show at the counter

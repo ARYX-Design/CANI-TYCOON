@@ -1,7 +1,8 @@
 // Coupon desk for the barbershop staff: log in with the PIN, check a code, mark it as used.
 
 const $ = s => document.querySelector(s);
-const API = (typeof window.CANI_API === 'string' ? window.CANI_API : '');
+const API = (typeof window.CANI_API === 'string' ? window.CANI_API
+  : typeof CANI_CONFIG !== 'undefined' && CANI_CONFIG.apiBase ? CANI_CONFIG.apiBase : '').replace(/\/$/, '');
 let token = sessionStorage.getItem('cani-staff') || '';
 let current = null;
 
