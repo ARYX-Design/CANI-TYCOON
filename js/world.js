@@ -1629,7 +1629,7 @@ const saveKey = id => SAVE_KEY + ':' + id;
 
 function saveData() {
   const s = Game.state;
-  s.savedAt = Date.now();
+  s.savedAt = Math.max(Date.now(), (s.savedAt || 0) + 1);   // never older than the copy it was loaded from
   const items = s.items.map(({ id, type, x, y, rot }) => ({ id, type, x, y, rot: rot || 0 }));
   return { ...s, items };
 }
