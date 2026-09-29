@@ -244,6 +244,27 @@ Neon, the host needs a persistent disk, with `DATA_DIR` pointing at it.
 Use HTTPS (most hosts do this for you). Players open the site on their phone; staff open `/staff.html` on the shop's
 phone or tablet. Scanning a coupon's QR code with the phone camera opens the coupon desk with the code filled in.
 
+### 💈 Admin menu (GitHub Actions)
+
+**Actions → Admin menu → Run workflow**, pick an action, fill in the boxes, **Run**. Open the finished run to see
+the results as tables. Only people with write access to the repository can run it.
+
+| Action | What it does | Boxes |
+|---|---|---|
+| overview | totals, top 20 leaderboard, all accounts | – |
+| players | every account: coins, money, day, location, earned, last save | – |
+| player | one account in detail: shop, upgrades, coupons | username |
+| give-money / set-money | add (or set) in-game money | username, amount |
+| give-coins | add Cani Coins (real-coupon currency) | username, amount |
+| rename | change the leaderboard name | username, value = new name |
+| reset-password | set a new password | username, value = new password |
+| remove-from-leaderboard | hide an entry (it returns when they play) | username |
+| delete-account | delete an account and its shop | username, value = `DELETE` |
+| table | show a table: players, accounts, scores, coupons, saves, log | table |
+| sql | any read-only SELECT query (cannot change data; passwords stay hidden) | value = query |
+
+Changed money or coins show up when the player reloads the game; an open game reloads by itself within ~20 s.
+
 ### At the counter
 
 1. The customer opens **Rewards → My coupons** and shows the coupon (QR + code like `CANI-7K3Q-9XPM`).

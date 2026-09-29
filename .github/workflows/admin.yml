@@ -1,0 +1,76 @@
+# 💈 Admin menu for the shop owner: Actions tab → "Admin menu" → Run workflow → pick what to do.
+# Results appear as tables on the run's page (open the run, then scroll to the summary).
+# Uses the Neon GitHub integration (NEON_PROJECT_ID variable, NEON_API_KEY secret). Only people with
+# write access to this repository can run it.
+name: Admin menu
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: What to do
+        type: choice
+        required: true
+        default: overview
+        options:
+          - overview
+          - players
+          - player
+          - give-money
+          - set-money
+          - give-coins
+          - rename
+          - reset-password
+          - remove-from-leaderboard
+          - delete-account
+          - table
+          - sql
+      username:
+        description: "Account username (for player actions)"
+        required: false
+      amount:
+        description: "Amount (give-money / set-money / give-coins; minus to take away)"
+        required: false
+      value:
+        description: "Text: new name (rename), new password (reset-password), DELETE (delete-account), or a SELECT query (sql)"
+        required: false
+      table:
+        description: "Table to show (for 'table')"
+        type: choice
+        required: false
+        default: players
+        options: [players, accounts, scores, coupons, saves, log]
+
+concurrency:
+  group: admin
+  cancel-in-progress: false
+
+jobs:
+  admin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Get the database address
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          PROJECT: ${{ vars.NEON_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          npm i -g neon@latest >/dev/null 2>&1
+          DB=$(neon connection-string --project-id "$PROJECT" --database-name neondb --role-name neondb_owner)
+          echo "::add-mask::$DB"
+          echo "DATABASE_URL=$DB" >> "$GITHUB_ENV"
+      - name: Run
+        env:
+          ACTION: ${{ inputs.action }}
+          USERNAME: ${{ inputs.username }}
+          AMOUNT: ${{ inputs.amount }}
+          VALUE: ${{ inputs.value }}
+          TABLE: ${{ inputs.table }}
+        run: node server/admin.js
