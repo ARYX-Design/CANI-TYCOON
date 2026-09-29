@@ -384,7 +384,15 @@ function cloudPushSave(data, now) {
         // on page close a normal request may be cut off; keepalive survives (up to 64 KB)
         if (now && body.length < 60000) {
           await fetch(Cloud.base + '/api/save', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + Cloud.token }, body });
-        } else await api('POST', '/api/save', { save: data, savedAt: data.savedAt });
+        } else {
+          const r = await api('POST', '/api/save', { save: data, savedAt: data.savedAt });
+          // the online shop is newer (another device, or a gift from the shop owner): load that one
+          if (r && r.stale && !Game.noSave) {
+            Game.noSave = true;
+            toast('☁️ Your shop was updated online – loading it…', 3000);
+            setTimeout(() => location.reload(), 1500);
+          }
+        }
       } catch (e) { /* offline for a moment: the next save tries again */ }
       res();
     }, wait);
