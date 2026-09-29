@@ -416,7 +416,7 @@ function handlePanelClick(e) {
     case 'redeem': redeemConfirm(el.dataset.id); break;
     case 'signIn': openSignIn(); break;
     case 'signOut':
-      showModal('<h2>Sign out?</h2><p>Your coins and coupons stay safe in your account. Sign in again any time with the same phone number or email.</p>',
+      showModal('<h2>Sign out?</h2><p>Your coins and coupons stay safe in your account. Sign in again any time with the same account.</p>',
         [{ label: 'Cancel' }, { label: 'Sign out', cls: 'danger', fn: signOut }]);
       break;
     case 'showCoupon': showCoupon(el.dataset.id); break;

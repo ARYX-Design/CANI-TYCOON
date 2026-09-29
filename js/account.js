@@ -56,6 +56,9 @@ function migrateOldSave() {
   saveProfiles();
 }
 
+// the server offers username + password accounts (always, on current servers)
+const usePassword = () => !!(Cloud.signIn && Cloud.signIn.password);
+
 function profileSummary(p) {
   const s = readLocalSave(p.id);
   if (!s) return p.contact ? 'Saved online' : 'New shop';
@@ -94,7 +97,7 @@ function accountGate() {
         <div class="field-error">${err}</div>
         <div class="gate-btns">
           <button class="btn ${Cloud.available ? '' : 'primary'}" data-g="new">＋ New player</button>
-          ${Cloud.available ? '<button class="btn primary" data-g="signin">🔐 Sign in with phone or email</button>' : ''}
+          ${Cloud.available ? `<button class="btn primary" data-g="signin">🔐 ${usePassword() ? 'Log in / create account' : 'Sign in with phone or email'}</button>` : ''}
         </div>
         <p class="gate-note">${Cloud.available
           ? 'Sign in to keep your shop online – continue on any phone or computer, and get real coupons. Players without sign-in are saved on this device only.'
@@ -130,16 +133,60 @@ function accountGate() {
       else askPin(p, 'Wrong PIN');
     };
 
+    // username + password account (no email or SMS service needed)
+    let username = '';
+    const passwordForm = (err = '') => {
+      const codes = Cloud.signIn && (Cloud.signIn.email || Cloud.signIn.phone);
+      card.innerHTML = `${head}
+        <h2>🔐 Your CANI account</h2>
+        <p class="gate-note">Log in to continue your shop on any phone or computer. New here? Pick a username and password, then tap <b>Create account</b>.</p>
+        <label class="field-label" for="gUser">Username</label>
+        <input class="field" id="gUser" maxlength="16" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="e.g. luka_kranj" value="${escapeHtml(username)}">
+        <label class="field-label" for="gPass">Password</label>
+        <input class="field" id="gPass" type="password" maxlength="100" autocomplete="current-password" placeholder="at least 6 characters">
+        <div class="field-error">${err}</div>
+        <div class="gate-btns">
+          <button class="btn" data-g="back">Back</button>
+          <button class="btn" data-g="register">＋ Create account</button>
+          <button class="btn primary" data-g="login">Log in</button>
+        </div>
+        ${codes ? '<p class="gate-note"><a href="#" data-g="codesignin">📧 Use a phone or email code instead</a></p>' : ''}`;
+      (username ? $('#gPass') : $('#gUser')).focus();
+    };
+    async function passwordAuth(mode) {
+      username = $('#gUser').value.trim();
+      const password = $('#gPass').value;
+      if (!username || !password) return passwordForm('Type a username and a password');
+      busy(true);
+      try {
+        // signing in needs a (temporary) player token
+        if (!Cloud.token) Cloud.token = (await api('POST', '/api/players')).token;
+        signedIn(await api('POST', mode === 'register' ? '/api/auth/register' : '/api/auth/login', { username, password }));
+      } catch (e) { passwordForm(e.message); }
+    }
+    // an account session was opened (password or code): remember it on this device and play
+    function signedIn(r) {
+      const id = 'acct-' + r.id;
+      let p = profileList().find(x => x.id === id);
+      if (!p) { p = { id, name: r.contact, createdAt: Date.now() }; profileList().push(p); }
+      p.contact = r.contact;
+      Account.current = p;
+      store(tokenKey(), r.token);
+      Cloud.token = r.token;
+      enter(p);
+    }
+
     // phone / email sign-in with a 6-digit code (same as in the Rewards tab)
     let contact = '';
-    const signIn = (err = '') => {
+    const signIn = (err = '') => usePassword() ? passwordForm(err) : codeSignIn(err);
+    const codeSignIn = (err = '') => {
       card.innerHTML = `${head}
         <h2>🔐 Sign in</h2>
         <p class="gate-note">We'll send you a 6-digit code. Your shop is saved to your account.</p>
         <label class="field-label" for="gContact">Phone (with country code) or email</label>
         <input class="field" id="gContact" autocomplete="username" inputmode="email" placeholder="+386 40 123 456 or you@mail.com" value="${escapeHtml(contact)}">
         <div class="field-error">${err}</div>
-        <div class="gate-btns"><button class="btn" data-g="back">Back</button><button class="btn primary" data-g="send">Send code</button></div>`;
+        <div class="gate-btns"><button class="btn" data-g="${usePassword() ? 'signin' : 'back'}">Back</button><button class="btn primary" data-g="send">Send code</button></div>`;
       $('#gContact').focus();
     };
     const codeStep = (to, devCode, err = '') => {
@@ -149,7 +196,7 @@ function accountGate() {
         ${devCode ? `<p class="tip">Test mode: your code is <b>${devCode}</b></p>` : ''}
         <input class="field code" id="gCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••">
         <div class="field-error">${err}</div>
-        <div class="gate-btns"><button class="btn" data-g="signin">Back</button><button class="btn primary" data-g="verify" data-to="${escapeHtml(to)}">Sign in</button></div>`;
+        <div class="gate-btns"><button class="btn" data-g="codesignin">Back</button><button class="btn primary" data-g="verify" data-to="${escapeHtml(to)}">Sign in</button></div>`;
       const inp = $('#gCode');
       inp.focus();
       inp.oninput = () => { inp.value = inp.value.replace(/\D/g, '').slice(0, 6); if (inp.value.length === 6) verify(to); };
@@ -157,35 +204,28 @@ function accountGate() {
     const busy = on => card.querySelectorAll('button').forEach(b => { b.disabled = on; });
     async function send() {
       contact = $('#gContact').value.trim();
-      if (!contact) return signIn('Type your phone number or email');
+      if (!contact) return codeSignIn('Type your phone number or email');
       busy(true);
       try {
         // signing in needs a (temporary) player token
         if (!Cloud.token) Cloud.token = (await api('POST', '/api/players')).token;
         const r = await api('POST', '/api/auth/start', { contact });
         codeStep(r.to, r.devCode);
-      } catch (e) { signIn(e.message); }
+      } catch (e) { codeSignIn(e.message); }
     }
     async function verify(to) {
       const code = $('#gCode').value;
       if (code.length !== 6) return;
       busy(true);
       try {
-        const r = await api('POST', '/api/auth/verify', { contact, code });
-        const id = 'acct-' + r.id;
-        let p = profileList().find(x => x.id === id);
-        if (!p) { p = { id, name: r.contact, createdAt: Date.now() }; profileList().push(p); }
-        p.contact = r.contact;
-        Account.current = p;
-        store(tokenKey(), r.token);
-        Cloud.token = r.token;
-        enter(p);
+        signedIn(await api('POST', '/api/auth/verify', { contact, code }));
       } catch (e) { codeStep(to, '', e.message); }
     }
 
     card.onclick = e => {
       const b = e.target.closest('[data-g]');
       if (!b || b.disabled) return;
+      if (b.tagName === 'A') e.preventDefault();
       const g = b.dataset.g;
       if (g === 'del') {
         e.stopPropagation();
@@ -206,6 +246,8 @@ function accountGate() {
       if (g === 'new') newPlayer();
       if (g === 'back') list();
       if (g === 'signin') signIn();
+      if (g === 'codesignin') codeSignIn();
+      if (g === 'login' || g === 'register') passwordAuth(g);
       if (g === 'send') send();
       if (g === 'verify') verify(b.dataset.to);
       if (g === 'unlock') unlock(profileList().find(x => x.id === b.dataset.id));
@@ -226,6 +268,8 @@ function accountGate() {
       if (e.key !== 'Enter') return;
       if (e.target.id === 'gName' || e.target.id === 'gPin') card.querySelector('[data-g="create"]').click();
       if (e.target.id === 'gContact') send();
+      if (e.target.id === 'gUser') $('#gPass').focus();
+      if (e.target.id === 'gPass') passwordAuth('login');
       if (e.target.id === 'gPinIn') card.querySelector('[data-g="unlock"]').click();
       if (e.target.classList.contains('gate-player')) e.target.click();
     };

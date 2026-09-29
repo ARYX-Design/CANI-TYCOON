@@ -39,6 +39,7 @@ function createApi(data, env = process.env) {
   // ---------- helpers ----------
 
   const mask = contact => {
+    if (contact.startsWith('user:')) return contact.slice(5);        // username accounts show the name
     if (contact.includes('@')) {
       const [u, dom] = contact.split('@');
       return `${u[0]}${'•'.repeat(Math.max(2, Math.min(6, u.length - 1)))}@${dom}`;
@@ -128,7 +129,7 @@ function createApi(data, env = process.env) {
 
   const api = {
     'GET /api/health': async () => ({ ok: true, rewards: REWARDS.length, store: data.kind }),
-    'GET /api/rewards': async () => ({ rewards: REWARDS, social: SOCIAL, cap: DAILY_CAP, signIn: { email: !!MAIL || AUTH_DEV, phone: !!SMS || AUTH_DEV } }),
+    'GET /api/rewards': async () => ({ rewards: REWARDS, social: SOCIAL, cap: DAILY_CAP, signIn: { email: !!MAIL || AUTH_DEV, phone: !!SMS || AUTH_DEV, password: true } }),
 
     'POST /api/players': async (req, ctx) => {
       // per network (a shop's Wi-Fi has many players); when the host hides addresses, one overall ceiling
@@ -182,16 +183,64 @@ function createApi(data, env = process.env) {
       if (pend.tries > 5) { await data.del('authcodes', c.value); fail(429, 'Too many wrong codes. Ask for a new one.'); }
       if (sha(c.value + ':' + String(body.code || '').trim()) !== pend.hash) fail(400, 'Wrong code');
       await data.del('authcodes', c.value);
+      return joinAccount(ctx, c.value);
+    },
 
+    // Username + password: create an account from this device's progress
+    'POST /api/auth/register': async (req, ctx, body) => {
+      const name = normalizeUsername(body.username);
+      const password = checkPassword(body.password);
+      await limit('regname:' + (ctx.ip || 'all'), ctx.ip ? 10 : 200, 3600e3, 'Too many new accounts from this network. Try again later.');
+      if (ctx.player.contact) fail(409, 'This device is signed in to another account. Sign out first.');
+      const key = 'user:' + name.toLowerCase();
+      if (await data.get('contacts', key)) fail(409, 'That username is taken – pick another one');
+      const salt = crypto.randomBytes(16).toString('hex');
+      await data.put('contacts', key, { playerId: ctx.player.id });
+      let token = '';
+      const account = await data.update('players', ctx.player.id, a => {
+        a.contact = 'user:' + name;
+        a.pass = { salt, hash: crypto.scryptSync(password, salt, 32).toString('hex') };
+        token = newToken(a);
+      });
+      return { token, merged: 0, ...await playerState(account) };
+    },
+
+    // Username + password: log in on this device (its coins join the account, like a code sign-in)
+    'POST /api/auth/login': async (req, ctx, body) => {
+      const name = normalizeUsername(body.username);
+      const key = 'user:' + name.toLowerCase();
+      await limit('login:' + key, 10, 900e3, 'Too many tries for this username. Wait 15 minutes.');
+      const link = await data.get('contacts', key);
+      const account = link && await data.get('players', link.playerId);
+      const pass = account && account.pass;
+      const given = crypto.scryptSync(String(body.password || ''), pass ? pass.salt : 'x', 32);
+      if (!pass || !crypto.timingSafeEqual(given, Buffer.from(pass.hash, 'hex'))) fail(401, 'Wrong username or password');
+      return joinAccount(ctx, key);
+    },
+  };
+
+  function normalizeUsername(raw) {
+    const n = String(raw || '').trim();
+    if (!/^[A-Za-z0-9_.\-čšžćđČŠŽĆĐ]{3,16}$/.test(n)) fail(400, 'Username: 3–16 letters, numbers, dots, dashes or underscores');
+    return n;
+  }
+  function checkPassword(raw) {
+    const pw = String(raw || '');
+    if (pw.length < 6 || pw.length > 100) fail(400, 'Password: at least 6 characters');
+    return pw;
+  }
+
+  // Put this device into the account behind `contactKey` (an email, phone or "user:name")
+  async function joinAccount(ctx, contactKey) {
       const p = ctx.player;
-      const link = await data.get('contacts', c.value);
+      const link = await data.get('contacts', contactKey);
       const accountId = typeof link === 'string' ? link : link && link.playerId;
       let merged = 0, token = '';
       if (!accountId || !await data.get('players', accountId)) {
         if (p.contact) fail(409, 'This device is signed in to another account. Sign out first.');
         // this device's progress becomes the account
-        const account = await data.update('players', p.id, a => { a.contact = c.value; token = newToken(a); });
-        await data.put('contacts', c.value, { playerId: p.id });
+        const account = await data.update('players', p.id, a => { a.contact = contactKey; token = newToken(a); });
+        await data.put('contacts', contactKey, { playerId: p.id });
         return { token, merged, ...await playerState(account) };
       }
       let deviceBalance = 0, deviceBonuses = {};
@@ -210,8 +259,9 @@ function createApi(data, env = process.env) {
         token = newToken(a);
       });
       return { token, merged, ...await playerState(account) };
-    },
+  }
 
+  const moreRoutes = {
     // Sign this device out: its token stops working; the game starts a new guest player
     'POST /api/auth/logout': async (req, ctx) => {
       await data.update('players', ctx.player.id, p => { p.tokenHashes = (p.tokenHashes || []).filter(x => x !== ctx.tokenHash); });
@@ -330,7 +380,8 @@ function createApi(data, env = process.env) {
     },
   };
 
-  const PLAYER_ROUTES = new Set(['POST /api/score', 'GET /api/leaderboard', 'GET /api/save', 'POST /api/save', 'POST /api/save/delete', 'GET /api/me', 'POST /api/earn', 'POST /api/redeem', 'POST /api/bonus', 'POST /api/auth/start', 'POST /api/auth/verify', 'POST /api/auth/logout']);
+  Object.assign(api, moreRoutes);
+  const PLAYER_ROUTES = new Set(['POST /api/auth/register', 'POST /api/auth/login', 'POST /api/score', 'GET /api/leaderboard', 'GET /api/save', 'POST /api/save', 'POST /api/save/delete', 'GET /api/me', 'POST /api/earn', 'POST /api/redeem', 'POST /api/bonus', 'POST /api/auth/start', 'POST /api/auth/verify', 'POST /api/auth/logout']);
   const STAFF_ROUTES = new Set(['POST /api/staff/lookup', 'POST /api/staff/use', 'GET /api/staff/recent']);
 
   // ---------- the handler ----------

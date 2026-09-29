@@ -126,7 +126,7 @@ function rewardsPanel() {
   const signedIn = online && Cloud.me && Cloud.me.signedIn;
   const account = !online ? '' : signedIn
     ? `<div class="account-row"><span>🔐 Signed in as <b>${Cloud.me.contact}</b></span><button class="btn small danger" data-action="signOut">Sign out</button></div>`
-    : `<div class="account-row signin"><span>Sign in with your phone or email to exchange coins for real coupons.</span><button class="btn small primary" data-action="signIn">Sign in</button></div>`;
+    : `<div class="account-row signin"><span>Log in to your CANI account to exchange coins for real coupons.</span><button class="btn small primary" data-action="signIn">Sign in</button></div>`;
   const rewards = list.map(r => `<div class="ticket real">
       <div class="ticket-icon">${r.icon}</div>
       <div class="ticket-main"><div class="card-title">${r.name}</div><div class="card-desc">${r.desc}${r.limitPer30Days ? ` · max ${r.limitPer30Days}× per 30 days` : ''}</div></div>

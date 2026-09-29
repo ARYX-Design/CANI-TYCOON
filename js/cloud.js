@@ -210,6 +210,51 @@ function openSignIn(afterId) {
     card.querySelector('[data-s="verify"]').onclick = verify;
     card.querySelector('[data-s="back"]').onclick = () => step1();
   };
+  // username + password (works without an email or SMS service)
+  let username = '';
+  const stepPw = (err = '') => {
+    const codes = opts.email || opts.phone;
+    card.innerHTML = `<h2>🔐 Your CANI account</h2>
+      <p>Real coupons belong to your account, so only you can use them. Log in, or pick a username and password to create one – this shop comes with you.</p>
+      <label class="field-label" for="signUser">Username</label>
+      <input class="field" id="signUser" maxlength="16" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="e.g. luka_kranj" value="${escapeHtml(username)}">
+      <label class="field-label" for="signPass">Password</label>
+      <input class="field" id="signPass" type="password" maxlength="100" autocomplete="current-password" placeholder="at least 6 characters">
+      <div class="field-error" id="signErr">${err}</div>
+      <div class="modal-btns"><button class="btn danger" data-s="cancel">Cancel</button><button class="btn" data-s="register">＋ Create account</button><button class="btn primary" data-s="login">Log in</button></div>
+      ${codes ? '<p class="muted small"><a href="#" data-s="codes">📧 Use a phone or email code instead</a></p>' : ''}`;
+    const u = $('#signUser'), pw = $('#signPass');
+    (username ? pw : u).focus();
+    u.onkeydown = e => { if (e.key === 'Enter') pw.focus(); e.stopPropagation(); };
+    pw.onkeydown = e => { if (e.key === 'Enter') pwAuth('login'); e.stopPropagation(); };
+    card.querySelector('[data-s="login"]').onclick = () => pwAuth('login');
+    card.querySelector('[data-s="register"]').onclick = () => pwAuth('register');
+    card.querySelector('[data-s="cancel"]').onclick = close;
+    const c = card.querySelector('[data-s="codes"]');
+    if (c) c.onclick = e => { e.preventDefault(); step1(); };
+  };
+  async function pwAuth(mode) {
+    username = $('#signUser').value.trim();
+    const password = $('#signPass').value;
+    if (!username || !password) return stepPw('Type a username and a password');
+    busy(true);
+    try { await done(await api('POST', mode === 'register' ? '/api/auth/register' : '/api/auth/login', { username, password })); }
+    catch (e) { stepPw(e.message); }
+  }
+  // signed in (password or code): this device now uses the account
+  async function done(r) {
+    Cloud.token = r.token;
+    store(tokenKey(), r.token);
+    Cloud.me = r;
+    syncCoinDisplay();
+    close();
+    await linkProfileToAccount(r);
+    sfx('fanfare');
+    toast(`✅ Signed in as ${r.contact}${r.merged ? ` · +⭐${r.merged} from this device` : ''}`, 3500);
+    if (UI.panel === 'rewards') renderPanel();
+    if (afterId) redeemConfirm(afterId);
+  }
+
   const busy = on => card.querySelectorAll('button').forEach(b => { b.disabled = on; });
   async function send() {
     contact = $('#signContact').value.trim();
@@ -224,24 +269,14 @@ function openSignIn(afterId) {
     if (code.length !== 6) return;
     busy(true);
     try {
-      const r = await api('POST', '/api/auth/verify', { contact, code });
-      Cloud.token = r.token;
-      store(tokenKey(), r.token);
-      Cloud.me = r;
-      syncCoinDisplay();
-      close();
-      await linkProfileToAccount(r);
-      sfx('fanfare');
-      toast(`✅ Signed in as ${r.contact}${r.merged ? ` · +⭐${r.merged} from this device` : ''}`, 3500);
-      if (UI.panel === 'rewards') renderPanel();
-      if (afterId) redeemConfirm(afterId);
+      await done(await api('POST', '/api/auth/verify', { contact, code }));
     } catch (e) {
       const to = card.querySelector('b') ? card.querySelector('b').textContent : contact;
       step2(to, '', e.message);
     }
   }
   function close() { m.classList.add('hidden'); }
-  step1();
+  if (opts.password) stepPw(); else step1();
   m.classList.remove('hidden');
 }
 

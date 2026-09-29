@@ -20,7 +20,9 @@ The game opens on a **Who's playing?** screen, and every player has their own sh
 
 - **New player**: type a name and, if you like, a 4-digit PIN so nobody else on the device opens your shop.
   (The PIN is a light lock for a shared phone, not real security.) These shops are saved on this device.
-- **Sign in with phone or email** (only when the rewards server is running): you get a 6-digit code, and
+- **Log in / create account** (when the rewards server is running): a username and password, stored securely
+  (scrypt-hashed) in the database. Your shop is saved online and continues on any phone or computer.
+- **Sign in with phone or email** (only when an email or SMS service is set up): you get a 6-digit code, and
   your shop is saved online to your account, so you can continue on any phone or computer. The newest copy
   wins. If you sign in from the Rewards tab while playing, the game asks whether to keep this shop or load
   the one already saved online.
